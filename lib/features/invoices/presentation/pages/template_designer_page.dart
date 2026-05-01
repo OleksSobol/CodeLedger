@@ -174,6 +174,7 @@ class _TemplateDesignerPageState extends ConsumerState<TemplateDesignerPage> {
               showDetailedBreakdown: Value(_showDetailedBreakdown),
               showPaymentTerms: Value(_showPaymentTerms),
               showLateFeeClause: Value(_showLateFeeClause),
+              showDescription: Value(_showDescription),
               footerText: Value(_footerCtrl.text.trim().isEmpty
                   ? null
                   : _footerCtrl.text.trim()),
