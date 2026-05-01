@@ -46,7 +46,7 @@ class TemplateListPage extends ConsumerWidget {
           return ListView.separated(
             padding: const EdgeInsets.all(Spacing.md),
             itemCount: templates.length,
-            separatorBuilder: (_, __) =>
+            separatorBuilder: (_, _) =>
                 const SizedBox(height: Spacing.sm),
             itemBuilder: (context, index) {
               final t = templates[index];

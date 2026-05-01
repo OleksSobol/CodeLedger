@@ -383,7 +383,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                         ),
                       ),
                       loading: () => const LinearProgressIndicator(),
-                      error: (_, __) => const Text('Error loading clients'),
+                      error: (_, _) => const Text('Error loading clients'),
                     ),
                     const SizedBox(height: 12),
 
@@ -420,7 +420,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                         );
                       },
                       loading: () => const LinearProgressIndicator(),
-                      error: (_, __) =>
+                      error: (_, _) =>
                           const Text('Error loading projects'),
                     ),
                   ],

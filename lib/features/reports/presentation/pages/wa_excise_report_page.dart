@@ -86,7 +86,7 @@ DateTimeRange _quarterRange(int year, int quarter) {
 String _periodCode(int year, int quarter) => 'Q$quarter$year';
 
 String _periodLabel(int year, int quarter) {
-  const labels = ['Janâ€“Mar', 'Aprâ€“Jun', 'Julâ€“Sep', 'Octâ€“Dec'];
+  const labels = ['Jan–Mar', 'Apr–Jun', 'Jul–Sep', 'Oct–Dec'];
   return 'Q$quarter $year (${labels[quarter - 1]})';
 }
 
@@ -407,7 +407,7 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
   @override
   Widget build(BuildContext context) {
     // Keep gross in sync when invoices load
-    ref.listen(allInvoicesProvider, (_, __) => _refreshGross());
+    ref.listen(allInvoicesProvider, (_, _) => _refreshGross());
 
     return Scaffold(
       appBar: AppBar(
@@ -446,6 +446,7 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
                 Row(children: [
                   Expanded(
                     child: DropdownButtonFormField<int>(
+                      // ignore: deprecated_member_use
                       value: _year,
                       decoration: const InputDecoration(labelText: 'Year'),
                       items: List.generate(5, (i) {
@@ -461,13 +462,14 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
                   const SizedBox(width: 12),
                   Expanded(
                     child: DropdownButtonFormField<int>(
+                      // ignore: deprecated_member_use
                       value: _quarter,
                       decoration: const InputDecoration(labelText: 'Quarter'),
                       items: const [
-                        DropdownMenuItem(value: 1, child: Text('Q1 (Janâ€“Mar)')),
-                        DropdownMenuItem(value: 2, child: Text('Q2 (Aprâ€“Jun)')),
-                        DropdownMenuItem(value: 3, child: Text('Q3 (Julâ€“Sep)')),
-                        DropdownMenuItem(value: 4, child: Text('Q4 (Octâ€“Dec)')),
+                        DropdownMenuItem(value: 1, child: Text('Q1 (Jan–Mar)')),
+                        DropdownMenuItem(value: 2, child: Text('Q2 (Apr–Jun)')),
+                        DropdownMenuItem(value: 3, child: Text('Q3 (Jul–Sep)')),
+                        DropdownMenuItem(value: 4, child: Text('Q4 (Oct–Dec)')),
                       ],
                       onChanged: (v) {
                         setState(() => _quarter = v!);
@@ -568,9 +570,9 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
               ListTile(
                 title: const Text('Tax Rates & Location'),
                 subtitle: Text(
-                  'B&O ${(_boRate * 100).toStringAsFixed(4)}%  Â·  '
+                  'B&O ${(_boRate * 100).toStringAsFixed(4)}%  ·  '
                   'State Sales ${(_stateSalesRate * 100).toStringAsFixed(2)}%'
-                  '${_localCodeCtrl.text.isNotEmpty ? '  Â·  Local ${(_localRate * 100).toStringAsFixed(2)}%' : ''}',
+                  '${_localCodeCtrl.text.isNotEmpty ? '  ·  Local ${(_localRate * 100).toStringAsFixed(2)}%' : ''}',
                   style: theme.textTheme.bodySmall,
                 ),
                 trailing: Icon(_showRateSettings
@@ -802,7 +804,7 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
     return ListView.separated(
       padding: const EdgeInsets.all(16),
       itemCount: _submissions.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
+      separatorBuilder: (_, _) => const SizedBox(height: 8),
       itemBuilder: (context, i) {
         final s = _submissions[i];
         return Card(

@@ -132,7 +132,7 @@ class _ActiveTimerWidgetState extends ConsumerState<ActiveTimerWidget>
               children: [
                 AnimatedBuilder(
                   animation: _pulseAnimation,
-                  builder: (_, __) => Container(
+                  builder: (_, _) => Container(
                     width: 10,
                     height: 10,
                     decoration: BoxDecoration(
@@ -161,7 +161,7 @@ class _ActiveTimerWidgetState extends ConsumerState<ActiveTimerWidget>
             // Full-width elapsed timer + earnings â€” isolated ticker
             ValueListenableBuilder<Duration>(
               valueListenable: _elapsed,
-              builder: (_, elapsed, __) {
+              builder: (_, elapsed, _) {
                 final h = elapsed.inHours;
                 final m = elapsed.inMinutes.remainder(60);
                 final s = elapsed.inSeconds.remainder(60);

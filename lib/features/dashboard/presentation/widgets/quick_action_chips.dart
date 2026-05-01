@@ -40,7 +40,7 @@ class QuickActionChips extends ConsumerWidget {
           height: 40,
           child: actionsAsync.when(
             loading: () => const SizedBox.shrink(),
-            error: (_, __) => const SizedBox.shrink(),
+            error: (_, _) => const SizedBox.shrink(),
             data: (actions) => ListView(
               scrollDirection: Axis.horizontal,
               children: [

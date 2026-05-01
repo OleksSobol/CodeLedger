@@ -755,7 +755,7 @@ class _ReviewStep extends ConsumerWidget {
         // Invoice template picker
         ref.watch(allTemplatesProvider).when(
               loading: () => const LinearProgressIndicator(),
-              error: (_, __) => const SizedBox.shrink(),
+              error: (_, _) => const SizedBox.shrink(),
               data: (templates) {
                 return DropdownButtonFormField<int?>(
                   initialValue: wizard.templateId,

@@ -359,6 +359,7 @@ class _TemplateDesignerPageState extends ConsumerState<TemplateDesignerPage> {
             icon: const Icon(Icons.more_vert),
             onSelected: (value) async {
               if (value == 'duplicate') {
+                final nav = Navigator.of(context);
                 final id = await ref
                     .read(templateNotifierProvider.notifier)
                     .duplicateTemplate(
@@ -367,11 +368,8 @@ class _TemplateDesignerPageState extends ConsumerState<TemplateDesignerPage> {
                   final dao = ref.read(invoiceTemplateDaoProvider);
                   final newTemplate = await dao.getById(id);
                   if (newTemplate != null && mounted) {
-                    Navigator.pop(context);
-                    context.mounted;
-                    // Navigate to the new template's designer
-                    Navigator.push(
-                      context,
+                    nav.pop();
+                    nav.push(
                       MaterialPageRoute(
                         builder: (_) =>
                             TemplateDesignerPage(template: newTemplate),
@@ -380,16 +378,18 @@ class _TemplateDesignerPageState extends ConsumerState<TemplateDesignerPage> {
                   }
                 }
               } else if (value == 'default') {
+                final messenger = ScaffoldMessenger.of(context);
                 await ref
                     .read(templateNotifierProvider.notifier)
                     .setDefault(widget.template.id);
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  messenger.showSnackBar(
                     const SnackBar(
                         content: Text('Set as default template')),
                   );
                 }
               } else if (value == 'delete') {
+                final nav = Navigator.of(context);
                 final confirmed = await showDialog<bool>(
                   context: context,
                   builder: (ctx) => AlertDialog(
@@ -410,7 +410,7 @@ class _TemplateDesignerPageState extends ConsumerState<TemplateDesignerPage> {
                   await ref
                       .read(templateNotifierProvider.notifier)
                       .deleteTemplate(widget.template.id);
-                  if (mounted) Navigator.pop(context);
+                  if (mounted) nav.pop();
                 }
               }
             },
@@ -699,11 +699,12 @@ class _TemplateDesignerPageState extends ConsumerState<TemplateDesignerPage> {
           // Set as Default
           OutlinedButton.icon(
             onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
               await ref
                   .read(templateNotifierProvider.notifier)
                   .setDefault(widget.template.id);
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
+                messenger.showSnackBar(
                   const SnackBar(
                       content: Text('Set as default template')),
                 );
