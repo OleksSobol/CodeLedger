@@ -42,6 +42,7 @@ class _TemplateDesignerPageState extends ConsumerState<TemplateDesignerPage> {
   late bool _showDetailedBreakdown;
   late bool _showPaymentTerms;
   late bool _showLateFeeClause;
+  late bool _showDescription;
 
   bool _saving = false;
   int _previewKey = 0;
@@ -72,6 +73,7 @@ class _TemplateDesignerPageState extends ConsumerState<TemplateDesignerPage> {
     _showDetailedBreakdown = t.showDetailedBreakdown;
     _showPaymentTerms = t.showPaymentTerms;
     _showLateFeeClause = t.showLateFeeClause;
+    _showDescription = t.showDescription;
   }
 
   @override
@@ -108,6 +110,7 @@ class _TemplateDesignerPageState extends ConsumerState<TemplateDesignerPage> {
       showDetailedBreakdown: _showDetailedBreakdown,
       showPaymentTerms: _showPaymentTerms,
       showLateFeeClause: _showLateFeeClause,
+      showDescription: _showDescription,
       footerText: _footerCtrl.text.trim().isEmpty
           ? null
           : _footerCtrl.text.trim(),
@@ -563,8 +566,7 @@ class _TemplateDesignerPageState extends ConsumerState<TemplateDesignerPage> {
           const ListTile(
             contentPadding: EdgeInsets.zero,
             title: Text('Line Item Columns'),
-            subtitle: Text(
-                'Choose which extra columns appear before the description'),
+            subtitle: Text('Choose which columns appear on each line item'),
           ),
           _ToggleTile(
             title: 'Show Date Column',
@@ -585,6 +587,14 @@ class _TemplateDesignerPageState extends ConsumerState<TemplateDesignerPage> {
                 _showIssueColumn = v;
                 _updateLineItemMode();
               });
+              _refreshPreview();
+            },
+          ),
+          _ToggleTile(
+            title: 'Show Description',
+            value: _showDescription,
+            onChanged: (v) {
+              setState(() => _showDescription = v);
               _refreshPreview();
             },
           ),

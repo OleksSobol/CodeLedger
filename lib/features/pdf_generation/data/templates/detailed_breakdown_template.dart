@@ -41,15 +41,16 @@ class DetailedBreakdownTemplate extends BaseInvoiceTemplate {
 
   pw.Widget _buildGroupedTable(PdfInvoiceData data, PdfColor accent) {
     final mode = data.template.lineItemDisplayMode;
+    final showDesc = data.template.showDescription;
     final allRows = <List<String>>[];
 
     for (final item in data.lineItems) {
-      final prefix = lineItemPrefix(item, mode);
+      final prefix = lineItemPrefix(item, mode, showDescription: showDesc);
       // Inject project name into the description (last element of prefix)
       final projectName = item.projectId != null
           ? data.projectNames[item.projectId] ?? ''
           : '';
-      if (projectName.isNotEmpty && prefix.isNotEmpty) {
+      if (showDesc && projectName.isNotEmpty && prefix.isNotEmpty) {
         prefix[prefix.length - 1] =
             '$projectName - ${prefix[prefix.length - 1]}';
       }
@@ -78,9 +79,9 @@ class DetailedBreakdownTemplate extends BaseInvoiceTemplate {
       headerDecoration: pw.BoxDecoration(color: accent),
       cellStyle: const pw.TextStyle(fontSize: 9),
       cellAlignment: pw.Alignment.centerLeft,
-      columnWidths: colWidthsForMode(mode),
+      columnWidths: colWidthsForMode(mode, showDescription: showDesc),
       headers: [
-        ...lineItemPrefixHeaders(mode),
+        ...lineItemPrefixHeaders(mode, showDescription: showDesc),
         'Hours',
         'Rate',
         'Amount',
