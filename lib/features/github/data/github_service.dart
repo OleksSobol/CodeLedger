@@ -32,20 +32,15 @@ class GitHubService {
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
   /// Normalizes any GitHub repo string to "owner/repo" format.
-  /// Handles full URLs like https://github.com/owner/repo.git
   static String normalizeRepo(String raw) {
     var s = raw.trim();
-    // Strip protocol + host
     s = s.replaceFirst(RegExp(r'^https?://github\.com/'), '');
-    // Strip trailing .git
     if (s.endsWith('.git')) s = s.substring(0, s.length - 4);
-    // Strip leading/trailing slashes
     s = s.replaceAll(RegExp(r'^/+|/+$'), '');
     return s;
   }
 
-  /// Verifies the PAT by calling /user. Returns the authenticated GitHub login
-  /// on success, or throws a descriptive string on failure.
+  /// Verifies the PAT by calling /user.
   Future<String> verifyPat() async {
     final uri = Uri.parse('https://api.github.com/user');
     final response = await http.get(uri, headers: _headers);
@@ -59,7 +54,7 @@ class GitHubService {
     }
   }
 
-  /// Checks if the repo is accessible and logs the result. Returns true on success.
+  /// Checks if the repo is accessible. Returns true on success.
   Future<bool> verifyRepoAccess(String repo) async {
     repo = normalizeRepo(repo);
     _log('Checking access to $repo…');
@@ -86,7 +81,6 @@ class GitHubService {
   }
 
   /// Fetches all branch names matching the Issue-* pattern for [repo].
-  /// Call once per repo and cache the result before scanning multiple entries.
   Future<List<String>> listIssueBranches(String repo) async {
     final branches = <String>[];
     var page = 1;
@@ -117,42 +111,46 @@ class GitHubService {
     return branches;
   }
 
-  /// Returns issue refs that had commits from [username] in [repo] within
-  /// [since]–[until]. Pass pre-fetched [issueBranches] (from [listIssueBranches])
-  /// to avoid a redundant branch-list API call per entry.
-  Future<Set<String>> getIssueRefsForTimeRange(
+  /// Builds a map of { issueRef → [commit UTC timestamps] } for a single day.
+  ///
+  /// Call once per (repo, day) and cache the result. Each entry then filters
+  /// the timestamps to its own start–end window — no redundant API calls.
+  Future<Map<String, List<DateTime>>> getRefsWithTimestampsForDay(
     String repo,
-    DateTime since,
-    DateTime until,
+    DateTime dayStart,
+    DateTime dayEnd,
     List<String> issueBranches,
   ) async {
-    repo = normalizeRepo(repo);
-    final found = <String>{};
+    final result = <String, List<DateTime>>{};
 
+    // Check issue branches in parallel batches of 10.
     const batchSize = 10;
     for (var i = 0; i < issueBranches.length; i += batchSize) {
       final batch = issueBranches.skip(i).take(batchSize).toList();
-      final results = await Future.wait(
+      final batchResults = await Future.wait(
         batch.map((branch) =>
-            _hasCommitsOnBranch(repo, branch, since, until)
-                .then((has) => has ? branch : null)),
+            _getCommitTimestampsOnBranch(repo, branch, dayStart, dayEnd)
+                .then((ts) => (branch, ts))),
       );
-      for (final branch in results.whereType<String>()) {
-        _log('  ✓ $branch — commit by $username in window');
-        found.add(branch);
+      for (final (branch, timestamps) in batchResults) {
+        if (timestamps.isNotEmpty) {
+          result[branch] = timestamps;
+          _log('  ✓ $branch — ${timestamps.length} commit(s) on ${_fmtDate(dayStart)}');
+        }
       }
     }
 
-    final msgRefs = await _getIssueRefsFromCommitMessages(repo, since, until);
-    if (msgRefs.isNotEmpty) {
-      _log('  Found ${msgRefs.length} ref(s) in commit messages: ${msgRefs.join(', ')}');
-      found.addAll(msgRefs);
+    // Commit message refs for the day.
+    final msgEntries =
+        await _getCommitMessageRefsWithTimestamps(repo, dayStart, dayEnd);
+    for (final (ref, timestamp) in msgEntries) {
+      result.putIfAbsent(ref, () => []).add(timestamp);
     }
 
-    return found;
+    return result;
   }
 
-  Future<bool> _hasCommitsOnBranch(
+  Future<List<DateTime>> _getCommitTimestampsOnBranch(
     String repo,
     String branch,
     DateTime since,
@@ -164,15 +162,20 @@ class GitHubService {
       '&author=${Uri.encodeComponent(username)}'
       '&since=${since.toIso8601String()}'
       '&until=${until.toIso8601String()}'
-      '&per_page=1',
+      '&per_page=100',
     );
     final response = await http.get(uri, headers: _headers);
-    if (response.statusCode != 200) return false;
+    if (response.statusCode != 200) return [];
     final List<dynamic> data = jsonDecode(response.body);
-    return data.isNotEmpty;
+    final timestamps = <DateTime>[];
+    for (final commit in data) {
+      final dateStr = commit['commit']?['author']?['date'] as String?;
+      if (dateStr != null) timestamps.add(DateTime.parse(dateStr));
+    }
+    return timestamps;
   }
 
-  Future<Set<String>> _getIssueRefsFromCommitMessages(
+  Future<List<(String, DateTime)>> _getCommitMessageRefsWithTimestamps(
     String repo,
     DateTime since,
     DateTime until,
@@ -185,10 +188,10 @@ class GitHubService {
       '&per_page=100',
     );
     final response = await http.get(uri, headers: _headers);
-    if (response.statusCode != 200) return {};
+    if (response.statusCode != 200) return [];
 
     final List<dynamic> data = jsonDecode(response.body);
-    final refs = <String>{};
+    final results = <(String, DateTime)>[];
     final pattern = RegExp(
       r'[Ii]ssue[-_ ]?#?(\d+)|(?:fix(?:es|ed)?|close[sd]?|resolve[sd]?)\s+#(\d+)',
       caseSensitive: false,
@@ -196,11 +199,14 @@ class GitHubService {
 
     for (final commit in data) {
       final msg = commit['commit']?['message'] as String? ?? '';
+      final dateStr = commit['commit']?['author']?['date'] as String?;
+      if (dateStr == null) continue;
+      final timestamp = DateTime.parse(dateStr);
       for (final match in pattern.allMatches(msg)) {
         final num = match.group(1) ?? match.group(2);
-        if (num != null) refs.add('Issue-$num');
+        if (num != null) results.add(('Issue-$num', timestamp));
       }
     }
-    return refs;
+    return results;
   }
 }
