@@ -218,8 +218,7 @@ class InvoiceDetailPage extends ConsumerWidget {
       final doc = await ref.refresh(invoicePdfProvider(invoiceId).future);
       final bytes = await doc.save();
 
-      // Save to temp file
-      final dir = await getTemporaryDirectory();
+      final dir = await getApplicationDocumentsDirectory();
       final file = File(
           '${dir.path}/${invoice.invoiceNumber.replaceAll(RegExp(r'[^\w]'), '_')}.pdf');
       await file.writeAsBytes(bytes);

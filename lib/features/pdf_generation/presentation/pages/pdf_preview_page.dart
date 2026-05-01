@@ -110,7 +110,7 @@ class _PdfPreviewPageState extends ConsumerState<PdfPreviewPage> {
       );
       final bytes = await doc.save();
 
-      final dir = await getTemporaryDirectory();
+      final dir = await getApplicationDocumentsDirectory();
       final file = File(
           '${dir.path}/${invoice.invoiceNumber.replaceAll(RegExp(r'[^\w]'), '_')}.pdf');
       await file.writeAsBytes(bytes);
