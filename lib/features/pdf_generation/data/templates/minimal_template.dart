@@ -1,5 +1,6 @@
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import '../../../../core/utils/pdf_font_utils.dart';
 import 'base_invoice_template.dart';
 import '../models/pdf_invoice_data.dart';
 
@@ -13,7 +14,7 @@ class MinimalTemplate extends BaseInvoiceTemplate {
 
   @override
   Future<pw.Document> build(PdfInvoiceData data) async {
-    final doc = pw.Document();
+    final doc = await newPdfDocument();
 
     doc.addPage(
       pw.MultiPage(

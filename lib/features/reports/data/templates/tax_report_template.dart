@@ -2,6 +2,7 @@ import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import '../../../../core/utils/currency_formatter.dart';
+import '../../../../core/utils/pdf_font_utils.dart';
 import '../models/tax_report_data.dart';
 
 class TaxReportTemplate {
@@ -10,7 +11,7 @@ class TaxReportTemplate {
   String _fmtDate(DateTime dt) => DateFormat('M/d/yyyy').format(dt);
 
   Future<pw.Document> build(TaxReportData data) async {
-    final doc = pw.Document();
+    final doc = await newPdfDocument();
 
     const headers = [
       'Date',

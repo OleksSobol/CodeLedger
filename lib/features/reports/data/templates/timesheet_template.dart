@@ -2,6 +2,7 @@ import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import '../../../../core/database/app_database.dart';
+import '../../../../core/utils/pdf_font_utils.dart';
 import '../models/work_report_data.dart';
 import 'work_report_template.dart';
 
@@ -31,7 +32,7 @@ class TimesheetTemplate implements ReportTemplate {
 
   @override
   Future<pw.Document> build(WorkReportData data) async {
-    final doc = pw.Document();
+    final doc = await newPdfDocument();
 
     // Group entries by date, sorted ascending
     final sorted = List<TimeEntry>.from(data.entries)
