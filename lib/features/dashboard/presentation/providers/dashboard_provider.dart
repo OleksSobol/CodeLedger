@@ -41,7 +41,7 @@ final monthlyIncomeProvider = FutureProvider<double>((ref) async {
   return paid
       .where((i) =>
           i.paidDate != null &&
-          i.paidDate!.isAfter(monthStart) &&
+          !i.paidDate!.isBefore(monthStart) &&
           i.paidDate!.isBefore(monthEnd))
       .fold<double>(0, (sum, i) => sum + i.amountPaid);
 });
