@@ -13,7 +13,7 @@ class TaxReportTemplate {
     final doc = pw.Document();
 
     const headers = [
-      'Date',
+      'Paid Date',
       'Client',
       'Invoice #',
       'Net Amount',
@@ -33,7 +33,7 @@ class TaxReportTemplate {
               '${formatCurrency(inv.taxAmount, currency: inv.currency)}';
 
       rows.add([
-        _fmtDate(inv.issueDate),
+        _fmtDate(inv.paidDate ?? inv.issueDate),
         row.clientName,
         inv.invoiceNumber,
         formatCurrency(inv.subtotal, currency: inv.currency),

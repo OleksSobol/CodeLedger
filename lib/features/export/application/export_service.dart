@@ -65,7 +65,7 @@ class ExportService {
   Future<File> generateTaxReportCsv({required List<TaxReportRow> rows}) async {
     final csvRows = <List<dynamic>>[];
     csvRows.add([
-      'Date', 'Client', 'Invoice #', 'Net Amount',
+      'Paid Date', 'Client', 'Invoice #', 'Net Amount',
       'Tax Label', 'Tax Rate %', 'Tax Amount',
       'Total Paid', 'Currency', 'Notes', 'Paid',
     ]);
@@ -74,7 +74,7 @@ class ExportService {
     for (final row in rows) {
       final inv = row.invoice;
       csvRows.add([
-        fmt.format(inv.issueDate),
+        fmt.format(inv.paidDate ?? inv.issueDate),
         row.clientName,
         inv.invoiceNumber,
         inv.subtotal.toStringAsFixed(2),

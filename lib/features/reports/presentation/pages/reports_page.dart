@@ -182,8 +182,11 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
       final validStatus = inv.status == 'paid' ||
           (_includeArchived && inv.status == 'archived');
       if (!validStatus) return false;
-      if (inv.issueDate.isBefore(_dateRange!.start)) return false;
-      if (inv.issueDate.isAfter(endOfDay)) return false;
+      // Use paidDate for cash-basis filtering; fall back to issueDate for
+      // legacy records that lack a paidDate.
+      final reportDate = inv.paidDate ?? inv.issueDate;
+      if (reportDate.isBefore(_dateRange!.start)) return false;
+      if (reportDate.isAfter(endOfDay)) return false;
       if (_selectedClientId != null && inv.clientId != _selectedClientId) {
         return false;
       }
