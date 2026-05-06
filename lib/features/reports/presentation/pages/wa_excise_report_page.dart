@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -9,7 +9,7 @@ import '../../../../core/providers/theme_provider.dart';
 import '../../../profile/presentation/providers/profile_provider.dart';
 import '../../../invoices/presentation/providers/invoice_providers.dart';
 
-// â”€â”€ Submission model â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Submission model ───────────────────────────────────────────────────────────
 
 class _WaSubmission {
   final String period;
@@ -71,7 +71,7 @@ class _WaSubmission {
       );
 }
 
-// â”€â”€ Quarter helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Quarter helpers ────────────────────────────────────────────────────────────
 
 int _quarterOf(DateTime d) => ((d.month - 1) ~/ 3) + 1;
 
@@ -86,11 +86,11 @@ DateTimeRange _quarterRange(int year, int quarter) {
 String _periodCode(int year, int quarter) => 'Q$quarter$year';
 
 String _periodLabel(int year, int quarter) {
-  const labels = ['Janâ€“Mar', 'Aprâ€“Jun', 'Julâ€“Sep', 'Octâ€“Dec'];
+  const labels = ['Jan–Mar', 'Apr–Jun', 'Jul–Sep', 'Oct–Dec'];
   return 'Q$quarter $year (${labels[quarter - 1]})';
 }
 
-// â”€â”€ Settings keys â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Settings keys ──────────────────────────────────────────────────────────────
 
 const _kTra = 'wa_tra';
 const _kBoRate = 'wa_bo_rate';
@@ -100,7 +100,7 @@ const _kLocalName = 'wa_local_location_name';
 const _kLocalRate = 'wa_local_tax_rate';
 const _kSubmissions = 'wa_submissions';
 
-// â”€â”€ Page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Page ───────────────────────────────────────────────────────────────────────
 
 class WaExciseReportPage extends ConsumerStatefulWidget {
   const WaExciseReportPage({super.key});
@@ -137,7 +137,7 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
   double _autoGross = 0;
   List<_WaSubmission> _submissions = [];
 
-  // â”€â”€ Computed values â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Computed values ──────────────────────────────────────────────────────────
 
   double get _gross => double.tryParse(_grossCtrl.text) ?? 0;
   double get _deductions => double.tryParse(_deductionsCtrl.text) ?? 0;
@@ -152,7 +152,7 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
   double get _credits => double.tryParse(_creditsCtrl.text) ?? 0;
   double get _totalDue => (_totalTax - _credits).clamp(0, double.infinity);
 
-  // â”€â”€ Lifecycle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Lifecycle ────────────────────────────────────────────────────────────────
 
   @override
   void initState() {
@@ -255,7 +255,7 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
     }
   }
 
-  // â”€â”€ DOR CSV generation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── DOR CSV generation ───────────────────────────────────────────────────────
 
   Future<String> _buildDorCsv() async {
     final profile = await ref.read(userProfileDaoProvider).getProfile();
@@ -283,7 +283,7 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
     if (hasLocal) {
       buf.writeln('TAX,45,$localCode,${_taxable.toStringAsFixed(2)}');
     }
-    // Deductions â€” Interstate/Foreign Sales (deduction code 01)
+    // Deductions — Interstate/Foreign Sales (deduction code 01)
     if (hasDeductions) {
       buf.writeln('DED,2,01,${_deductions.toStringAsFixed(2)}');
       buf.writeln('DED,1,01,${_deductions.toStringAsFixed(2)}');
@@ -291,7 +291,7 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
     return buf.toString();
   }
 
-  // â”€â”€ Actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Actions ──────────────────────────────────────────────────────────────────
 
   Future<void> _exportCsv() async {
     setState(() => _loading = true);
@@ -402,7 +402,7 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
     }
   }
 
-  // â”€â”€ Build â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Build ────────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -434,7 +434,7 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        // â”€â”€ Quarter â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Quarter ────────────────────────────────────────────────
         Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -464,10 +464,10 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
                       value: _quarter,
                       decoration: const InputDecoration(labelText: 'Quarter'),
                       items: const [
-                        DropdownMenuItem(value: 1, child: Text('Q1 (Janâ€“Mar)')),
-                        DropdownMenuItem(value: 2, child: Text('Q2 (Aprâ€“Jun)')),
-                        DropdownMenuItem(value: 3, child: Text('Q3 (Julâ€“Sep)')),
-                        DropdownMenuItem(value: 4, child: Text('Q4 (Octâ€“Dec)')),
+                        DropdownMenuItem(value: 1, child: Text('Q1 (Jan–Mar)')),
+                        DropdownMenuItem(value: 2, child: Text('Q2 (Apr–Jun)')),
+                        DropdownMenuItem(value: 3, child: Text('Q3 (Jul–Sep)')),
+                        DropdownMenuItem(value: 4, child: Text('Q4 (Oct–Dec)')),
                       ],
                       onChanged: (v) {
                         setState(() => _quarter = v!);
@@ -493,7 +493,7 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
         ),
         const SizedBox(height: 12),
 
-        // â”€â”€ TRA â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── TRA ───────────────────────────────────────────────────
         TextFormField(
           controller: _traCtrl,
           decoration: const InputDecoration(
@@ -506,7 +506,7 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
         ),
         const SizedBox(height: 12),
 
-        // â”€â”€ Gross & Deductions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Gross & Deductions ────────────────────────────────────
         Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -561,16 +561,16 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
         ),
         const SizedBox(height: 12),
 
-        // â”€â”€ Rate settings (collapsible) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Rate settings (collapsible) ───────────────────────────
         Card(
           child: Column(
             children: [
               ListTile(
                 title: const Text('Tax Rates & Location'),
                 subtitle: Text(
-                  'B&O ${(_boRate * 100).toStringAsFixed(4)}%  Â·  '
+                  'B&O ${(_boRate * 100).toStringAsFixed(4)}%  ·  '
                   'State Sales ${(_stateSalesRate * 100).toStringAsFixed(2)}%'
-                  '${_localCodeCtrl.text.isNotEmpty ? '  Â·  Local ${(_localRate * 100).toStringAsFixed(2)}%' : ''}',
+                  '${_localCodeCtrl.text.isNotEmpty ? '  ·  Local ${(_localRate * 100).toStringAsFixed(2)}%' : ''}',
                   style: theme.textTheme.bodySmall,
                 ),
                 trailing: Icon(_showRateSettings
@@ -655,7 +655,7 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
         ),
         const SizedBox(height: 16),
 
-        // â”€â”€ Tax breakdown summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Tax breakdown summary ─────────────────────────────────
         Card(
           color: theme.colorScheme.surfaceContainerLow,
           child: Padding(
@@ -668,7 +668,7 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
                         fontWeight: FontWeight.bold)),
                 const SizedBox(height: 12),
                 _SummarySection(
-                  label: 'Business & Occupation â€” Retailing',
+                  label: 'Business & Occupation — Retailing',
                   rows: [
                     _TaxRow('Gross', cur.format(_gross)),
                     _TaxRow('Deductions', 'âˆ’ ${cur.format(_deductions)}'),
@@ -683,7 +683,7 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
                 ),
                 const Divider(height: 24),
                 _SummarySection(
-                  label: 'State Sales and Use â€” Retail Sales',
+                  label: 'State Sales and Use — Retail Sales',
                   rows: [
                     _TaxRow('Gross', cur.format(_gross)),
                     _TaxRow('Deductions', 'âˆ’ ${cur.format(_deductions)}'),
@@ -697,7 +697,7 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
                   const Divider(height: 24),
                   _SummarySection(
                     label:
-                        'Local Sales Tax â€” ${_localNameCtrl.text.isNotEmpty ? _localNameCtrl.text : _localCodeCtrl.text}',
+                        'Local Sales Tax — ${_localNameCtrl.text.isNotEmpty ? _localNameCtrl.text : _localCodeCtrl.text}',
                     rows: [
                       _TaxRow('Taxable', cur.format(_taxable), bold: true),
                       _TaxRow('Rate', pct.format(_localRate)),
@@ -741,19 +741,19 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
         ),
         const SizedBox(height: 12),
 
-        // â”€â”€ Notes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Notes ────────────────────────────────────────────────
         TextFormField(
           controller: _notesCtrl,
           decoration: const InputDecoration(
             labelText: 'Notes (optional)',
-            hintText: 'e.g. Submitted via MyDOR â€” Confirmation #...',
+            hintText: 'e.g. Submitted via MyDOR — Confirmation #...',
             border: OutlineInputBorder(),
           ),
           maxLines: 2,
         ),
         const SizedBox(height: 20),
 
-        // â”€â”€ Actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        // ── Actions ──────────────────────────────────────────────
         FilledButton.icon(
           onPressed: _loading ? null : _exportCsv,
           icon: const Icon(Icons.download_outlined),
@@ -879,7 +879,7 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
   }
 }
 
-// â”€â”€ Helper widgets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Helper widgets ─────────────────────────────────────────────────────────────
 
 class _SummarySection extends StatelessWidget {
   final String label;

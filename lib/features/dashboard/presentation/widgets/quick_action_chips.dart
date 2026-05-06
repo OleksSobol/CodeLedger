@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../shared/widgets/spacing.dart';
 import '../../../clients/presentation/providers/client_providers.dart';
@@ -59,7 +59,7 @@ class QuickActionChips extends ConsumerWidget {
                     ),
                   );
                 }),
-                // "Add" chip â€” outlined/secondary style to differentiate
+                // "Add" chip — outlined/secondary style to differentiate
                 ActionChip(
                   avatar: Icon(Icons.add, size: 18,
                       color: theme.colorScheme.outline),

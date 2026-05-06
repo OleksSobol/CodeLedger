@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/database/daos/app_settings_dao.dart';
 import '../../../../core/providers/theme_provider.dart';
