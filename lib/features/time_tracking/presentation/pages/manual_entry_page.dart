@@ -101,6 +101,7 @@ class _ManualEntryPageState extends ConsumerState<ManualEntryPage> {
             repository: _trimOrNull(_repoCtrl.text),
             tags: serializeTags(_tagsCtrl.text),
           );
+      ref.invalidate(allTagsProvider);
       if (mounted) context.pop();
     } catch (e) {
       if (mounted) {

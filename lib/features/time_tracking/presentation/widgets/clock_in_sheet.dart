@@ -65,6 +65,7 @@ class _ClockInSheetState extends ConsumerState<ClockInSheet> {
             repository: _trimOrNull(_repoCtrl.text),
             tags: serializeTags(_tagsCtrl.text),
           );
+      ref.invalidate(allTagsProvider);
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (mounted) {

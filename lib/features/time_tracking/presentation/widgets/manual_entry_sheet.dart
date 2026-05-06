@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/database/app_database.dart';
+import '../../../../core/utils/tag_utils.dart';
 import '../../../../shared/widgets/spacing.dart';
 import '../../../clients/presentation/providers/client_providers.dart';
 import '../../../projects/presentation/providers/project_providers.dart';
@@ -100,16 +101,6 @@ class _ManualEntrySheetState extends ConsumerState<ManualEntrySheet> {
 
     setState(() => _saving = true);
     try {
-      final tagsText = _tagsCtrl.text.trim();
-      String? tagsJson;
-      if (tagsText.isNotEmpty) {
-        final tagList = tagsText
-            .split(',')
-            .map((t) => t.trim())
-            .where((t) => t.isNotEmpty);
-        tagsJson = '[${tagList.map((t) => '"$t"').join(',')}]';
-      }
-
       await ref.read(timerNotifierProvider.notifier).addManualEntry(
             clientId: _selectedClient!.id,
             projectId: _selectedProject?.id,
@@ -118,8 +109,9 @@ class _ManualEntrySheetState extends ConsumerState<ManualEntrySheet> {
             description: _trimOrNull(_descriptionCtrl.text),
             issueReference: _trimOrNull(_issueRefCtrl.text),
             repository: _trimOrNull(_repoCtrl.text),
-            tags: tagsJson,
+            tags: serializeTags(_tagsCtrl.text),
           );
+      ref.invalidate(allTagsProvider);
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       if (mounted) {
