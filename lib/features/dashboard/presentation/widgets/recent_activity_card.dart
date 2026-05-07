@@ -27,7 +27,7 @@ class RecentActivitySliver extends ConsumerWidget {
 
     return recentAsync.when(
       loading: () => const SliverToBoxAdapter(child: SizedBox.shrink()),
-      error: (_, __) => const SliverToBoxAdapter(child: SizedBox.shrink()),
+      error: (_, _) => const SliverToBoxAdapter(child: SizedBox.shrink()),
       data: (entries) {
         final completed =
             entries.where((e) => e.endTime != null).take(5).toList();

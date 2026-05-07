@@ -19,7 +19,7 @@ class ClientListTile extends ConsumerWidget {
         title: Text(client.name),
         subtitle: summaryAsync.when(
           loading: () => const Text('Loading...'),
-          error: (_, __) => null,
+          error: (_, _) => null,
           data: (summary) {
             final parts = <String>[];
             if (summary.uninvoicedHours > 0) {

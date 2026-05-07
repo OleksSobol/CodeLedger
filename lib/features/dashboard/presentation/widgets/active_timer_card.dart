@@ -69,7 +69,7 @@ class _ActiveTimerCardState extends ConsumerState<ActiveTimerCard>
 
     return runningAsync.when(
       loading: () => const SizedBox.shrink(),
-      error: (_, __) => const SizedBox.shrink(),
+      error: (_, _) => const SizedBox.shrink(),
       data: (running) {
         if (running == null) {
           _stopTicker();
@@ -148,7 +148,7 @@ class _ActiveTimerCardState extends ConsumerState<ActiveTimerCard>
               children: [
                 AnimatedBuilder(
                   animation: _pulseAnimation,
-                  builder: (_, __) => Container(
+                  builder: (_, _) => Container(
                     width: 10,
                     height: 10,
                     decoration: BoxDecoration(
@@ -177,7 +177,7 @@ class _ActiveTimerCardState extends ConsumerState<ActiveTimerCard>
             // Full-width elapsed timer — isolated ticker
             ValueListenableBuilder<Duration>(
               valueListenable: _elapsed,
-              builder: (_, elapsed, __) {
+              builder: (_, elapsed, _) {
                 final h = elapsed.inHours;
                 final m = elapsed.inMinutes.remainder(60);
                 final s = elapsed.inSeconds.remainder(60);
@@ -214,6 +214,7 @@ class _ActiveTimerCardState extends ConsumerState<ActiveTimerCard>
   }
 
   Future<void> _clockOut(BuildContext context, int entryId) async {
+    final messenger = ScaffoldMessenger.of(context);
     try {
       await ref.read(timerNotifierProvider.notifier).clockOut(entryId);
     } on OverlappingTimeEntryException catch (e) {
@@ -221,7 +222,7 @@ class _ActiveTimerCardState extends ConsumerState<ActiveTimerCard>
       final timeFmt = DateFormat.jm();
       final overlap = e.existing;
       final confirmed = await showDialog<bool>(
-        context: context,
+        context: context, // ignore: use_build_context_synchronously
         builder: (ctx) => AlertDialog(
           title: const Text('Overlapping Entry'),
           content: Text(
@@ -249,7 +250,7 @@ class _ActiveTimerCardState extends ConsumerState<ActiveTimerCard>
               .clockOut(entryId, truncateOverlaps: true);
         } catch (e2) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
+            messenger.showSnackBar(
               SnackBar(content: Text('Error: $e2')),
             );
           }
@@ -257,7 +258,7 @@ class _ActiveTimerCardState extends ConsumerState<ActiveTimerCard>
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        messenger.showSnackBar(
           SnackBar(content: Text('Error: $e')),
         );
       }

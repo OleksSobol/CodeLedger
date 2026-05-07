@@ -32,7 +32,7 @@ class FinancialSummaryRow extends ConsumerWidget {
             label: '$monthName Income',
             value: incomeAsync.when(
               loading: () => '...',
-              error: (_, __) => '--',
+              error: (_, _) => '--',
               data: (v) => formatCurrency(v),
             ),
             icon: Icons.trending_up,
@@ -43,7 +43,7 @@ class FinancialSummaryRow extends ConsumerWidget {
             label: 'Outstanding',
             value: outstandingAsync.when(
               loading: () => '...',
-              error: (_, __) => '--',
+              error: (_, _) => '--',
               data: (v) => v.count == 0 ? 'None' : formatCurrency(v.total),
             ),
             icon: Icons.send_outlined,
@@ -59,7 +59,7 @@ class FinancialSummaryRow extends ConsumerWidget {
             label: 'Overdue',
             value: overdueAsync.when(
               loading: () => '...',
-              error: (_, __) => '--',
+              error: (_, _) => '--',
               data: (v) => v.count == 0 ? 'None' : formatCurrency(v.total),
             ),
             icon: overdueAsync.whenOrNull(
@@ -82,7 +82,7 @@ class FinancialSummaryRow extends ConsumerWidget {
             label: 'Uninvoiced',
             value: uninvoicedAsync.when(
               loading: () => '...',
-              error: (_, __) => '--',
+              error: (_, _) => '--',
               data: (items) {
                 final totalHours =
                     items.fold<double>(0, (sum, i) => sum + i.hours);

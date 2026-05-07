@@ -1,6 +1,7 @@
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import '../../../../core/database/app_database.dart';
+import '../../../../core/utils/pdf_font_utils.dart';
 import 'base_invoice_template.dart';
 import '../models/pdf_invoice_data.dart';
 
@@ -13,7 +14,7 @@ class ModernDeveloperTemplate extends BaseInvoiceTemplate {
 
   @override
   Future<pw.Document> build(PdfInvoiceData data) async {
-    final doc = pw.Document();
+    final doc = await newPdfDocument();
     final primary = colorFromArgb(data.template.primaryColor);
     final accent = colorFromArgb(data.template.accentColor);
 
@@ -105,6 +106,7 @@ class ModernDeveloperTemplate extends BaseInvoiceTemplate {
   pw.Widget _buildDevTable(
       PdfInvoiceData data, PdfColor accent, PdfColor primary) {
     final mode = data.template.lineItemDisplayMode;
+    final showDesc = data.template.showDescription;
 
     // Determine whether each item is time-based by description format,
     // not by timeEntryId (grouped items have null timeEntryId).
@@ -184,15 +186,15 @@ class ModernDeveloperTemplate extends BaseInvoiceTemplate {
               headerAlignment: pw.Alignment.centerLeft,
               cellStyle: const pw.TextStyle(fontSize: 9),
               cellAlignment: pw.Alignment.centerLeft,
-              columnWidths: colWidthsForMode(mode),
+              columnWidths: colWidthsForMode(mode, showDescription: showDesc),
               headers: [
-                ...lineItemPrefixHeaders(mode),
+                ...lineItemPrefixHeaders(mode, showDescription: showDesc),
                 'Hours',
                 'Rate',
                 'Amount',
               ],
               data: items.map((item) {
-                final prefix = lineItemPrefix(item, mode);
+                final prefix = lineItemPrefix(item, mode, showDescription: showDesc);
                 return [
                   ...prefix,
                   '${item.quantity.toStringAsFixed(2)}h',
@@ -232,16 +234,15 @@ class ModernDeveloperTemplate extends BaseInvoiceTemplate {
               headerAlignment: pw.Alignment.centerLeft,
               cellStyle: const pw.TextStyle(fontSize: 9),
               cellAlignment: pw.Alignment.centerLeft,
-              columnWidths: colWidthsForMode(mode),
+              columnWidths: colWidthsForMode(mode, showDescription: showDesc),
               headers: [
-                ...lineItemPrefixHeaders(mode),
+                ...lineItemPrefixHeaders(mode, showDescription: showDesc),
                 'Qty',
                 'Rate',
                 'Amount',
               ],
               data: manualItems.map((item) {
-                // Manual items have no date; use lineItemPrefix for consistency
-                final prefix = lineItemPrefix(item, mode);
+                final prefix = lineItemPrefix(item, mode, showDescription: showDesc);
                 return [
                   ...prefix,
                   item.quantity.toStringAsFixed(2),

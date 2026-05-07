@@ -407,7 +407,7 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
   @override
   Widget build(BuildContext context) {
     // Keep gross in sync when invoices load
-    ref.listen(allInvoicesProvider, (_, __) => _refreshGross());
+    ref.listen(allInvoicesProvider, (_, _) => _refreshGross());
 
     return Scaffold(
       appBar: AppBar(
@@ -446,6 +446,7 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
                 Row(children: [
                   Expanded(
                     child: DropdownButtonFormField<int>(
+                      // ignore: deprecated_member_use
                       value: _year,
                       decoration: const InputDecoration(labelText: 'Year'),
                       items: List.generate(5, (i) {
@@ -461,6 +462,7 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
                   const SizedBox(width: 12),
                   Expanded(
                     child: DropdownButtonFormField<int>(
+                      // ignore: deprecated_member_use
                       value: _quarter,
                       decoration: const InputDecoration(labelText: 'Quarter'),
                       items: const [
@@ -802,7 +804,7 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
     return ListView.separated(
       padding: const EdgeInsets.all(16),
       itemCount: _submissions.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
+      separatorBuilder: (_, _) => const SizedBox(height: 8),
       itemBuilder: (context, i) {
         final s = _submissions[i];
         return Card(
