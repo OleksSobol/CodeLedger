@@ -1,0 +1,125 @@
+name: Release on version change
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - pubspec.yaml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read version from pubspec
+        id: version
+        run: |
+          full=$(grep '^version:' pubspec.yaml | awk '{print $2}')
+          semver="${full%%+*}"
+          echo "full=$full" >> "$GITHUB_OUTPUT"
+          echo "semver=$semver" >> "$GITHUB_OUTPUT"
+          echo "tag=v$semver" >> "$GITHUB_OUTPUT"
+
+      - name: Check if tag already exists
+        id: tagcheck
+        run: |
+          if git rev-parse "refs/tags/${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Tag ${{ steps.version.outputs.tag }} already exists, skipping."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Find previous tag
+        if: steps.tagcheck.outputs.exists == 'false'
+        id: prev
+        run: |
+          prev=$(git tag --list 'v*' --sort=-v:refname | head -n1)
+          echo "tag=$prev" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Java
+        if: steps.tagcheck.outputs.exists == 'false'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        if: steps.tagcheck.outputs.exists == 'false'
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Get dependencies
+        if: steps.tagcheck.outputs.exists == 'false'
+        run: flutter pub get
+
+      - name: Run code generation
+        if: steps.tagcheck.outputs.exists == 'false'
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Build release APK
+        if: steps.tagcheck.outputs.exists == 'false'
+        run: flutter build apk --release
+
+      - name: Rename APK
+        if: steps.tagcheck.outputs.exists == 'false'
+        run: |
+          mkdir -p dist
+          cp build/app/outputs/flutter-apk/app-release.apk \
+            "dist/code-ledger-${{ steps.version.outputs.semver }}.apk"
+
+      - name: Package source code
+        if: steps.tagcheck.outputs.exists == 'false'
+        run: |
+          git archive --format=zip \
+            -o "dist/code-ledger-${{ steps.version.outputs.semver }}-source.zip" HEAD
+
+      - name: Build changelog
+        if: steps.tagcheck.outputs.exists == 'false'
+        id: changelog
+        run: |
+          range=""
+          if [ -n "${{ steps.prev.outputs.tag }}" ]; then
+            range="${{ steps.prev.outputs.tag }}..HEAD"
+            header="Changes since ${{ steps.prev.outputs.tag }}:"
+          else
+            header="Initial release. All commits:"
+          fi
+          {
+            echo 'body<<CHANGELOG_EOF'
+            echo "Version ${{ steps.version.outputs.full }}"
+            echo ''
+            echo "$header"
+            echo ''
+            git log $range --pretty=format:'- %s' \
+              | sed 's/[\xE2\x80\x93\xE2\x80\x94]/-/g; s/[\xE2\x86\x92\xE2\x86\x90]/to/g'
+            echo ''
+            echo 'CHANGELOG_EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create release
+        if: steps.tagcheck.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
+          body: ${{ steps.changelog.outputs.body }}
+          files: |
+            dist/code-ledger-${{ steps.version.outputs.semver }}.apk
+            dist/code-ledger-${{ steps.version.outputs.semver }}-source.zip
+          fail_on_unmatched_files: true
