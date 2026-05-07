@@ -1,5 +1,6 @@
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import '../../../../core/utils/pdf_font_utils.dart';
 import 'base_invoice_template.dart';
 import '../models/pdf_invoice_data.dart';
 
@@ -12,7 +13,7 @@ class DetailedBreakdownTemplate extends BaseInvoiceTemplate {
 
   @override
   Future<pw.Document> build(PdfInvoiceData data) async {
-    final doc = pw.Document();
+    final doc = await newPdfDocument();
     final primary = colorFromArgb(data.template.primaryColor);
     final accent = colorFromArgb(data.template.accentColor);
 
@@ -41,15 +42,16 @@ class DetailedBreakdownTemplate extends BaseInvoiceTemplate {
 
   pw.Widget _buildGroupedTable(PdfInvoiceData data, PdfColor accent) {
     final mode = data.template.lineItemDisplayMode;
+    final showDesc = data.template.showDescription;
     final allRows = <List<String>>[];
 
     for (final item in data.lineItems) {
-      final prefix = lineItemPrefix(item, mode);
+      final prefix = lineItemPrefix(item, mode, showDescription: showDesc);
       // Inject project name into the description (last element of prefix)
       final projectName = item.projectId != null
           ? data.projectNames[item.projectId] ?? ''
           : '';
-      if (projectName.isNotEmpty && prefix.isNotEmpty) {
+      if (showDesc && projectName.isNotEmpty && prefix.isNotEmpty) {
         prefix[prefix.length - 1] =
             '$projectName - ${prefix[prefix.length - 1]}';
       }
@@ -78,9 +80,9 @@ class DetailedBreakdownTemplate extends BaseInvoiceTemplate {
       headerDecoration: pw.BoxDecoration(color: accent),
       cellStyle: const pw.TextStyle(fontSize: 9),
       cellAlignment: pw.Alignment.centerLeft,
-      columnWidths: colWidthsForMode(mode),
+      columnWidths: colWidthsForMode(mode, showDescription: showDesc),
       headers: [
-        ...lineItemPrefixHeaders(mode),
+        ...lineItemPrefixHeaders(mode, showDescription: showDesc),
         'Hours',
         'Rate',
         'Amount',

@@ -29,7 +29,7 @@ class MonthlyIncomeCard extends ConsumerWidget {
                 incomeAsync.when(
                   loading: () => Text('...',
                       style: theme.textTheme.headlineSmall),
-                  error: (_, __) => Text('--',
+                  error: (_, _) => Text('--',
                       style: theme.textTheme.headlineSmall),
                   data: (income) => Text(
                     formatCurrency(income),

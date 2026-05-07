@@ -2,6 +2,7 @@ import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import '../../../../core/database/app_database.dart';
+import '../../../../core/utils/pdf_font_utils.dart';
 import '../models/work_report_data.dart';
 import 'work_report_template.dart';
 
@@ -31,7 +32,7 @@ class TimesheetTemplate implements ReportTemplate {
 
   @override
   Future<pw.Document> build(WorkReportData data) async {
-    final doc = pw.Document();
+    final doc = await newPdfDocument();
 
     // Group entries by date, sorted ascending
     final sorted = List<TimeEntry>.from(data.entries)
@@ -72,7 +73,7 @@ class TimesheetTemplate implements ReportTemplate {
 
         if (columns.showStartEnd) {
           row.add(_fmtTime(e.startTime));
-          row.add(e.endTime != null ? _fmtTime(e.endTime!) : '—');
+          row.add(e.endTime != null ? _fmtTime(e.endTime!) : '-');
         }
         row.add(_fmtHours(e.durationMinutes ?? 0));
 
@@ -156,7 +157,7 @@ class TimesheetTemplate implements ReportTemplate {
 
   pw.Widget _buildHeader(WorkReportData data) {
     final period =
-        '${DateFormat.yMMMd().format(data.startDate)} – ${DateFormat.yMMMd().format(data.endDate)}';
+        '${DateFormat.yMMMd().format(data.startDate)} - ${DateFormat.yMMMd().format(data.endDate)}';
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [

@@ -42,6 +42,7 @@ class _TemplateDesignerPageState extends ConsumerState<TemplateDesignerPage> {
   late bool _showDetailedBreakdown;
   late bool _showPaymentTerms;
   late bool _showLateFeeClause;
+  late bool _showDescription;
 
   bool _saving = false;
   int _previewKey = 0;
@@ -72,6 +73,7 @@ class _TemplateDesignerPageState extends ConsumerState<TemplateDesignerPage> {
     _showDetailedBreakdown = t.showDetailedBreakdown;
     _showPaymentTerms = t.showPaymentTerms;
     _showLateFeeClause = t.showLateFeeClause;
+    _showDescription = t.showDescription;
   }
 
   @override
@@ -108,6 +110,7 @@ class _TemplateDesignerPageState extends ConsumerState<TemplateDesignerPage> {
       showDetailedBreakdown: _showDetailedBreakdown,
       showPaymentTerms: _showPaymentTerms,
       showLateFeeClause: _showLateFeeClause,
+      showDescription: _showDescription,
       footerText: _footerCtrl.text.trim().isEmpty
           ? null
           : _footerCtrl.text.trim(),
@@ -171,6 +174,7 @@ class _TemplateDesignerPageState extends ConsumerState<TemplateDesignerPage> {
               showDetailedBreakdown: Value(_showDetailedBreakdown),
               showPaymentTerms: Value(_showPaymentTerms),
               showLateFeeClause: Value(_showLateFeeClause),
+              showDescription: Value(_showDescription),
               footerText: Value(_footerCtrl.text.trim().isEmpty
                   ? null
                   : _footerCtrl.text.trim()),
@@ -355,6 +359,7 @@ class _TemplateDesignerPageState extends ConsumerState<TemplateDesignerPage> {
             icon: const Icon(Icons.more_vert),
             onSelected: (value) async {
               if (value == 'duplicate') {
+                final nav = Navigator.of(context);
                 final id = await ref
                     .read(templateNotifierProvider.notifier)
                     .duplicateTemplate(
@@ -363,11 +368,8 @@ class _TemplateDesignerPageState extends ConsumerState<TemplateDesignerPage> {
                   final dao = ref.read(invoiceTemplateDaoProvider);
                   final newTemplate = await dao.getById(id);
                   if (newTemplate != null && mounted) {
-                    Navigator.pop(context);
-                    context.mounted;
-                    // Navigate to the new template's designer
-                    Navigator.push(
-                      context,
+                    nav.pop();
+                    nav.push(
                       MaterialPageRoute(
                         builder: (_) =>
                             TemplateDesignerPage(template: newTemplate),
@@ -376,16 +378,18 @@ class _TemplateDesignerPageState extends ConsumerState<TemplateDesignerPage> {
                   }
                 }
               } else if (value == 'default') {
+                final messenger = ScaffoldMessenger.of(context);
                 await ref
                     .read(templateNotifierProvider.notifier)
                     .setDefault(widget.template.id);
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  messenger.showSnackBar(
                     const SnackBar(
                         content: Text('Set as default template')),
                   );
                 }
               } else if (value == 'delete') {
+                final nav = Navigator.of(context);
                 final confirmed = await showDialog<bool>(
                   context: context,
                   builder: (ctx) => AlertDialog(
@@ -406,7 +410,7 @@ class _TemplateDesignerPageState extends ConsumerState<TemplateDesignerPage> {
                   await ref
                       .read(templateNotifierProvider.notifier)
                       .deleteTemplate(widget.template.id);
-                  if (mounted) Navigator.pop(context);
+                  if (mounted) nav.pop();
                 }
               }
             },
@@ -563,8 +567,7 @@ class _TemplateDesignerPageState extends ConsumerState<TemplateDesignerPage> {
           const ListTile(
             contentPadding: EdgeInsets.zero,
             title: Text('Line Item Columns'),
-            subtitle: Text(
-                'Choose which extra columns appear before the description'),
+            subtitle: Text('Choose which columns appear on each line item'),
           ),
           _ToggleTile(
             title: 'Show Date Column',
@@ -585,6 +588,14 @@ class _TemplateDesignerPageState extends ConsumerState<TemplateDesignerPage> {
                 _showIssueColumn = v;
                 _updateLineItemMode();
               });
+              _refreshPreview();
+            },
+          ),
+          _ToggleTile(
+            title: 'Show Description',
+            value: _showDescription,
+            onChanged: (v) {
+              setState(() => _showDescription = v);
               _refreshPreview();
             },
           ),
@@ -688,11 +699,12 @@ class _TemplateDesignerPageState extends ConsumerState<TemplateDesignerPage> {
           // Set as Default
           OutlinedButton.icon(
             onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
               await ref
                   .read(templateNotifierProvider.notifier)
                   .setDefault(widget.template.id);
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
+                messenger.showSnackBar(
                   const SnackBar(
                       content: Text('Set as default template')),
                 );

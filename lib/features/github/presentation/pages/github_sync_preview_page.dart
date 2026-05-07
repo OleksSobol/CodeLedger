@@ -270,7 +270,7 @@ class _GitHubSyncPreviewPageState
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
           child: Text(
-            '${preview.matches.length} match${preview.matches.length == 1 ? '' : 'es'} found — select which to apply',
+            '${preview.matches.length} match${preview.matches.length == 1 ? '' : 'es'} found - select which to apply',
             style: theme.textTheme.titleSmall,
           ),
         ),
@@ -460,7 +460,7 @@ class _MatchTile extends StatelessWidget {
                 if (match.clientName.isNotEmpty) match.clientName,
                 dateFmt.format(entry.startTime),
                 if (entry.endTime != null)
-                  '${timeFmt.format(entry.startTime)} – ${timeFmt.format(entry.endTime!)}',
+                  '${timeFmt.format(entry.startTime)} - ${timeFmt.format(entry.endTime!)}',
               ].join('  ·  '),
               style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant),

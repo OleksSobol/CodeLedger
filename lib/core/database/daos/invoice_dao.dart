@@ -176,6 +176,79 @@ class InvoiceDao extends DatabaseAccessor<AppDatabase>
     });
   }
 
+  /// Append more line items (and their backing time entries) to an existing
+  /// invoice, then recompute totals in one transaction.
+  Future<void> appendLineItems({
+    required int invoiceId,
+    required List<InvoiceLineItemsCompanion> lineItems,
+    required List<int> timeEntryIds,
+  }) {
+    return transaction(() async {
+      final existing = await getLineItems(invoiceId);
+      var sortOrder = existing.isEmpty
+          ? 0
+          : (existing
+                  .map((e) => e.sortOrder)
+                  .reduce((a, b) => a > b ? a : b) +
+              1);
+
+      for (final item in lineItems) {
+        await into(invoiceLineItems).insert(
+          item.copyWith(
+            invoiceId: Value(invoiceId),
+            sortOrder: Value(sortOrder++),
+          ),
+        );
+      }
+
+      if (timeEntryIds.isNotEmpty) {
+        await (update(timeEntries)
+              ..where((t) => t.id.isIn(timeEntryIds)))
+            .write(TimeEntriesCompanion(
+          isInvoiced: const Value(true),
+          invoiceId: Value(invoiceId),
+          updatedAt: Value(DateTime.now()),
+        ));
+      }
+
+      // Recalculate totals from all line items.
+      final items = await getLineItems(invoiceId);
+      final subtotal = items.fold<double>(0, (sum, i) => sum + i.total);
+      final inv = await getInvoice(invoiceId);
+      final taxAmount = subtotal * (inv.taxRate / 100);
+      final total = subtotal + taxAmount + inv.lateFeeAmount;
+
+      // Extend the period to cover any new entries' dates.
+      DateTime? periodStart = inv.periodStart;
+      DateTime? periodEnd = inv.periodEnd;
+      if (timeEntryIds.isNotEmpty) {
+        final added = await (select(timeEntries)
+              ..where((t) => t.id.isIn(timeEntryIds)))
+            .get();
+        for (final e in added) {
+          final s = e.startTime;
+          final eEnd = e.endTime ?? e.startTime;
+          periodStart = (periodStart == null || s.isBefore(periodStart))
+              ? s
+              : periodStart;
+          periodEnd = (periodEnd == null || eEnd.isAfter(periodEnd))
+              ? eEnd
+              : periodEnd;
+        }
+      }
+
+      await (update(invoices)..where((t) => t.id.equals(invoiceId)))
+          .write(InvoicesCompanion(
+        subtotal: Value(subtotal),
+        taxAmount: Value(taxAmount),
+        total: Value(total),
+        periodStart: Value(periodStart),
+        periodEnd: Value(periodEnd),
+        updatedAt: Value(DateTime.now()),
+      ));
+    });
+  }
+
   /// Update a single line item and recalculate invoice totals in a transaction.
   Future<void> updateLineItem({
     required int lineItemId,
@@ -281,6 +354,16 @@ class InvoiceDao extends DatabaseAccessor<AppDatabase>
           total: Value(total),
           currency: Value(currency),
           notes: Value(notes),
+          updatedAt: Value(DateTime.now()),
+        ))
+        .then((rows) => rows > 0);
+  }
+
+  /// Set or clear the invoice's chosen PDF template.
+  Future<bool> updateTemplate(int invoiceId, int? templateId) {
+    return (update(invoices)..where((t) => t.id.equals(invoiceId)))
+        .write(InvoicesCompanion(
+          templateId: Value(templateId),
           updatedAt: Value(DateTime.now()),
         ))
         .then((rows) => rows > 0);

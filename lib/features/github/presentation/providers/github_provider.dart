@@ -79,6 +79,9 @@ class GitHubSyncNotifier extends AsyncNotifier<void> {
 
   /// Scans all linked repos for the date range and returns potential matches
   /// WITHOUT applying any changes. [onLog] is called live as each step runs.
+  ///
+  /// Uses a day-level commit cache: API calls = repos × days × (branches/10 + 1),
+  /// not repos × entries × (branches/10 + 1), so a month scan stays fast.
   Future<GitHubSyncPreview> previewSync(
       DateTime start, DateTime end, {void Function(SyncLog)? onLog}) async {
     final dao = ref.read(appSettingsDaoProvider);
@@ -111,8 +114,7 @@ class GitHubSyncNotifier extends AsyncNotifier<void> {
     if (linkedProjects.isEmpty) {
       emitError('No projects have a GitHub repo linked. Edit a project to add one.');
       return const GitHubSyncPreview(
-        error:
-            'No projects have a GitHub repo linked. Edit a project to add one.',
+        error: 'No projects have a GitHub repo linked. Edit a project to add one.',
       );
     }
 
@@ -122,31 +124,27 @@ class GitHubSyncNotifier extends AsyncNotifier<void> {
     // Cap end at today — never scan future dates.
     final now = DateTime.now();
     final tomorrow = DateTime(now.year, now.month, now.day + 1);
-    var day = DateTime(start.year, start.month, start.day);
-    final endDay = () {
+    final scanStart = DateTime(start.year, start.month, start.day);
+    final scanEnd = () {
       final raw = DateTime(end.year, end.month, end.day + 1);
       return raw.isBefore(tomorrow) ? raw : tomorrow;
     }();
 
     service.logs.add(SyncLog(
       'Scanning ${linkedProjects.length} linked project(s) for '
-      '${_fmtDate(day)} – ${_fmtDate(endDay.subtract(const Duration(days: 1)))}',
+      '${_fmtDate(scanStart)} – ${_fmtDate(scanEnd.subtract(const Duration(days: 1)))}',
       SyncLogLevel.info,
     ));
 
-    // Verify repo access first.
+    // Verify repo access and pre-fetch branch lists — once per repo.
     final accessOk = <String, bool>{};
-    for (final p in linkedProjects) {
-      final normalized = GitHubService.normalizeRepo(p.githubRepo!);
-      accessOk[normalized] = await service.verifyRepoAccess(normalized);
-    }
-
-    // Pre-fetch Issue-* branch lists once per repo to avoid redundant API calls.
     final branchCache = <String, List<String>>{};
     for (final p in linkedProjects) {
       final repo = GitHubService.normalizeRepo(p.githubRepo!);
-      if (accessOk[repo] != true) continue;
-      if (!branchCache.containsKey(repo)) {
+      if (!accessOk.containsKey(repo)) {
+        accessOk[repo] = await service.verifyRepoAccess(repo);
+      }
+      if (accessOk[repo] == true && !branchCache.containsKey(repo)) {
         branchCache[repo] = await service.listIssueBranches(repo);
         service.logs.add(SyncLog(
           '  $repo: ${branchCache[repo]!.length} Issue-* branch(es)',
@@ -155,58 +153,94 @@ class GitHubSyncNotifier extends AsyncNotifier<void> {
       }
     }
 
+    // Fetch all entries in range in one DB call.
     final timeEntryDao = ref.read(timeEntryDaoProvider);
-    final matches = <SyncMatch>[];
+    final allEntries =
+        await timeEntryDao.getAllEntries(from: scanStart, to: scanEnd);
 
-    while (day.isBefore(endDay)) {
-      final dayEnd = day.add(const Duration(days: 1));
-      final entries = await timeEntryDao.getAllEntries(from: day, to: dayEnd);
+    if (allEntries.isEmpty) {
+      service.logs.add(SyncLog('No time entries in range.', SyncLogLevel.info));
+      return GitHubSyncPreview(logs: List.from(service.logs));
+    }
 
-      for (final entry in entries) {
-        // Use the entry's exact time window — commits outside it are ignored.
-        final since = entry.startTime.toUtc();
-        final until = (entry.endTime ?? dayEnd).toUtc();
+    // Build a day-level commit cache: "$repo::$dateKey" → {issueRef: [timestamps]}.
+    // One set of API calls per (repo, day) regardless of how many entries that day has.
+    final commitCache = <String, Map<String, List<DateTime>>>{};
 
-        // Match only projects whose repo could apply to this entry.
-        final applicableProjects = linkedProjects.where((p) =>
-            p.id == entry.projectId ||
-            (entry.projectId == null && p.clientId == entry.clientId)).toList();
+    for (final entry in allEntries) {
+      final applicableProjects = linkedProjects
+          .where((p) =>
+              p.id == entry.projectId ||
+              (entry.projectId == null && p.clientId == entry.clientId))
+          .toList();
 
-        for (final project in applicableProjects) {
-          final repo = GitHubService.normalizeRepo(project.githubRepo!);
-          if (accessOk[repo] != true) continue;
-          final branches = branchCache[repo] ?? [];
+      for (final project in applicableProjects) {
+        final repo = GitHubService.normalizeRepo(project.githubRepo!);
+        if (accessOk[repo] != true) continue;
 
-          final issueRefs = await service.getIssueRefsForTimeRange(
-            repo, since, until, branches,
+        final localDay = DateTime(entry.startTime.year, entry.startTime.month,
+            entry.startTime.day);
+        final cacheKey = '$repo::${_fmtDate(localDay)}';
+
+        if (!commitCache.containsKey(cacheKey)) {
+          final dayStart = localDay.toUtc();
+          final dayEnd = localDay.add(const Duration(days: 1)).toUtc();
+          commitCache[cacheKey] = await service.getRefsWithTimestampsForDay(
+            repo, dayStart, dayEnd, branchCache[repo] ?? [],
           );
-
-          for (final issueRef in issueRefs) {
-            if (_hasRef(entry.issueReference, issueRef)) continue;
-
-            // Deduplicate: don't add the same (issueRef, entryId) twice.
-            final alreadyQueued = matches.any(
-              (m) => m.issueRef == issueRef && m.entry.id == entry.id,
-            );
-            if (alreadyQueued) continue;
-
-            matches.add(SyncMatch(
-              repo: repo,
-              projectName: project.name,
-              clientName: clientById[project.clientId] ?? '',
-              issueRef: issueRef,
-              entry: entry,
-              existingRef: entry.issueReference,
-            ));
-          }
         }
       }
+    }
 
-      day = dayEnd;
+    // Match entries to issue refs by filtering timestamps to the entry's window.
+    final matches = <SyncMatch>[];
+
+    for (final entry in allEntries) {
+      final since = entry.startTime.toUtc();
+      final localDay = DateTime(
+          entry.startTime.year, entry.startTime.month, entry.startTime.day);
+      final dayEnd = localDay.add(const Duration(days: 1)).toUtc();
+      final until = (entry.endTime?.toUtc()) ?? dayEnd;
+
+      final applicableProjects = linkedProjects
+          .where((p) =>
+              p.id == entry.projectId ||
+              (entry.projectId == null && p.clientId == entry.clientId))
+          .toList();
+
+      for (final project in applicableProjects) {
+        final repo = GitHubService.normalizeRepo(project.githubRepo!);
+        if (accessOk[repo] != true) continue;
+
+        final cacheKey = '$repo::${_fmtDate(localDay)}';
+        final dayRefs = commitCache[cacheKey] ?? {};
+
+        for (final issueRef in dayRefs.keys) {
+          final timestamps = dayRefs[issueRef]!;
+          // At least one commit must fall within the entry's exact time window.
+          final hasInWindow =
+              timestamps.any((ts) => !ts.isBefore(since) && ts.isBefore(until));
+          if (!hasInWindow) continue;
+          if (_hasRef(entry.issueReference, issueRef)) continue;
+
+          final alreadyQueued =
+              matches.any((m) => m.issueRef == issueRef && m.entry.id == entry.id);
+          if (alreadyQueued) continue;
+
+          matches.add(SyncMatch(
+            repo: repo,
+            projectName: project.name,
+            clientName: clientById[project.clientId] ?? '',
+            issueRef: issueRef,
+            entry: entry,
+            existingRef: entry.issueReference,
+          ));
+        }
+      }
     }
 
     service.logs.add(SyncLog(
-      'Scan complete — ${matches.length} match(es) found.',
+      'Scan complete - ${matches.length} match(es) found.',
       SyncLogLevel.info,
     ));
 

@@ -151,7 +151,7 @@ class _EditTimeEntryPageState extends ConsumerState<EditTimeEntryPage> {
           SnackBar(
             content: Text(
               'Overlaps with entry: '
-              '${timeFmt.format(overlapping.startTime)} – '
+              '${timeFmt.format(overlapping.startTime)} - '
               '${timeFmt.format(overlapping.endTime!)}',
             ),
             duration: const Duration(seconds: 4),
@@ -185,6 +185,7 @@ class _EditTimeEntryPageState extends ConsumerState<EditTimeEntryPage> {
             IconButton(
               icon: const Icon(Icons.delete_outline),
               onPressed: () async {
+                final nav = Navigator.of(context);
                 final confirmed = await showDialog<bool>(
                   context: context,
                   builder: (ctx) => AlertDialog(
@@ -211,7 +212,7 @@ class _EditTimeEntryPageState extends ConsumerState<EditTimeEntryPage> {
                   await ref
                       .read(timerNotifierProvider.notifier)
                       .deleteEntry(widget.entry.id);
-                  if (mounted) context.pop(true);
+                  if (mounted) nav.pop(true);
                 }
               },
             ),
@@ -297,6 +298,7 @@ class _EditTimeEntryPageState extends ConsumerState<EditTimeEntryPage> {
             data: (projects) {
               if (projects.isEmpty) return const SizedBox.shrink();
               return DropdownButtonFormField<int?>(
+                // ignore: deprecated_member_use
                 value: projects.any((p) => p.id == _selectedProjectId)
                     ? _selectedProjectId
                     : null,
@@ -317,7 +319,7 @@ class _EditTimeEntryPageState extends ConsumerState<EditTimeEntryPage> {
               );
             },
             loading: () => const SizedBox.shrink(),
-            error: (_, __) => const SizedBox.shrink(),
+            error: (_, _) => const SizedBox.shrink(),
           ),
           const SizedBox(height: 12),
           TextFormField(
