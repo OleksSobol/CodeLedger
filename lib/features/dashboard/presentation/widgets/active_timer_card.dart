@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -174,7 +174,7 @@ class _ActiveTimerCardState extends ConsumerState<ActiveTimerCard>
             ),
             const SizedBox(height: Spacing.sm),
 
-            // Full-width elapsed timer â€” isolated ticker
+            // Full-width elapsed timer — isolated ticker
             ValueListenableBuilder<Duration>(
               valueListenable: _elapsed,
               builder: (_, elapsed, _) {
@@ -198,7 +198,7 @@ class _ActiveTimerCardState extends ConsumerState<ActiveTimerCard>
 
             const SizedBox(height: Spacing.md),
 
-            // Clock Out button â€” full width
+            // Clock Out button — full width
             FilledButton(
               onPressed: () => _clockOut(context, running.id),
               style: FilledButton.styleFrom(

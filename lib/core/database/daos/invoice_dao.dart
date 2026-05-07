@@ -264,9 +264,10 @@ class InvoiceDao extends DatabaseAccessor<AppDatabase>
     required String taxLabel,
     required String currency,
     String? notes,
-  }) {
+  }) async {
     final taxAmount = subtotal * (taxRate / 100);
-    final total = subtotal + taxAmount;
+    final inv = await getInvoice(invoiceId);
+    final total = subtotal + taxAmount + inv.lateFeeAmount;
     return (update(invoices)..where((t) => t.id.equals(invoiceId)))
         .write(InvoicesCompanion(
           clientId: Value(clientId),

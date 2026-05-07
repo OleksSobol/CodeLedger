@@ -65,7 +65,8 @@ class _EditDraftInvoicePageState extends ConsumerState<EditDraftInvoicePage> {
       double.tryParse(_subtotalCtrl.text.replaceAll(',', '')) ?? 0.0;
   double get _taxRate => double.tryParse(_taxRateCtrl.text) ?? 0.0;
   double get _taxAmount => _subtotal * (_taxRate / 100.0);
-  double get _total => _subtotal + _taxAmount;
+  double get _total =>
+      _subtotal + _taxAmount + widget.invoice.lateFeeAmount;
 
   Future<void> _pickDate(bool isIssue) async {
     final initial = isIssue ? _issueDate : _dueDate;
@@ -333,6 +334,14 @@ class _EditDraftInvoicePageState extends ConsumerState<EditDraftInvoicePage> {
                                 '(${_taxRate.toStringAsFixed(2).replaceAll(RegExp(r'\.?0+$'), '')}%)',
                             amount: _taxAmount,
                             currency: _currency),
+                      ],
+                      if (widget.invoice.lateFeeAmount > 0) ...[
+                        const SizedBox(height: Spacing.xs),
+                        _TotalRow(
+                          label: 'Late Fee',
+                          amount: widget.invoice.lateFeeAmount,
+                          currency: _currency,
+                        ),
                       ],
                       const Divider(),
                       _TotalRow(
