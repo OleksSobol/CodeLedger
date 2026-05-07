@@ -65,6 +65,12 @@ class SettingsPage extends ConsumerWidget {
             onTap: () => context.push('/reports'),
           ),
           _SettingsTile(
+            icon: Icons.account_balance_outlined,
+            title: 'Taxes',
+            subtitle: 'Federal income report, expense tracking, WA B&O',
+            onTap: () => context.push('/taxes'),
+          ),
+          _SettingsTile(
             icon: Icons.cloud_outlined,
             title: 'Backup & Restore',
             subtitle: 'Encrypted local & Drive backups',

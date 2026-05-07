@@ -26,6 +26,7 @@ import '../../features/invoices/presentation/pages/template_list_page.dart';
 import '../../features/invoices/presentation/pages/template_designer_page.dart';
 import '../../features/time_tracking/presentation/pages/time_entry_layout_page.dart';
 import '../../features/settings/presentation/pages/accounts_settings_page.dart';
+import '../../features/reports/presentation/pages/taxes_page.dart';
 import '../../features/reports/presentation/pages/wa_excise_report_page.dart';
 import '../../features/github/presentation/pages/github_sync_preview_page.dart';
 
@@ -271,6 +272,12 @@ final appRouter = GoRouter(
       name: 'reports',
       parentNavigatorKey: _rootNavigatorKey,
       builder: (context, state) => const ReportsPage(),
+    ),
+    GoRoute(
+      path: '/taxes',
+      name: 'taxes',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => const TaxesPage(),
     ),
     GoRoute(
       path: '/reports/wa-excise',
