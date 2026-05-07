@@ -60,7 +60,7 @@ class UserProfiles extends Table {
   IntColumn get defaultTemplateId =>
       integer().nullable().references(InvoiceTemplates, #id)();
   TextColumn get defaultEmailSubjectFormat => text()
-      .withDefault(const Constant('Invoice #{number} – {period}'))();
+      .withDefault(const Constant('Invoice #{number} - {period}'))();
 
   // Invoice numbering
   IntColumn get nextInvoiceNumber =>

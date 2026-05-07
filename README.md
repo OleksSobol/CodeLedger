@@ -17,7 +17,8 @@ Offline-first time tracking and invoicing app for freelance developers. Built wi
 ### GitHub Integration
 - Link a GitHub repo (`owner/repo`) to any project
 - Connect via Personal Access Token (Settings → Accounts → GitHub)
-- **Sync GitHub Issues** — scans linked repos for `Issue-XXXX` branches with commits in the current date range and auto-appends issue references to matching time entries
+- **Connection test** — verifies PAT and checks access to all linked repos with live feedback
+- **Sync GitHub Issues** — scans linked repos for `Issue-XXXX` branches and commit messages within the selected date range (capped at today); previews matches with live log before applying; matches use the entry's exact time window for commit-level precision
 
 ### Client & Project Management
 - Archive/restore clients and projects
@@ -28,7 +29,7 @@ Offline-first time tracking and invoicing app for freelance developers. Built wi
 - Invoice wizard — select uninvoiced time entries, add manual line items, apply tax
 - Draft editing, mark paid/archived, late fee clause
 - PDF templates — 3 built-in: Minimal, Detailed Breakdown, Modern Developer
-- Template designer — colors, font, footer, independent Date and Issue # column toggles, logo, payment info, tax breakdown, bank details, Stripe link, and more
+- Template designer — colors, font, footer, description, independent Date, Issue #, and Description column toggles, logo, payment info, tax breakdown, bank details, Stripe link, and more
 - Custom templates (duplicate and customize any built-in)
 
 ### Reports

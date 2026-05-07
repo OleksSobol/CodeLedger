@@ -1167,7 +1167,7 @@ class _InvoiceSettingsTileState extends ConsumerState<_InvoiceSettingsTile> {
         ),
         templatesAsync.when(
           loading: () => const LinearProgressIndicator(),
-          error: (_, __) => const SizedBox.shrink(),
+          error: (_, _) => const SizedBox.shrink(),
           data: (templates) => DropdownButtonFormField<int?>(
             initialValue: _selectedTemplateId,
             decoration: const InputDecoration(
@@ -1256,7 +1256,7 @@ class _BackupTileState extends ConsumerState<_BackupTile> {
 
     return passphraseAsync.when(
       loading: () => const SizedBox.shrink(),
-      error: (_, __) => const SizedBox.shrink(),
+      error: (_, _) => const SizedBox.shrink(),
       data: (stored) {
         if (!_loaded) {
           _loaded = true;

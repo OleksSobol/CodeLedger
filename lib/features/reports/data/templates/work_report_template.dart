@@ -1,8 +1,9 @@
+import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import '../../../../core/database/app_database.dart';
+import '../../../../core/utils/pdf_font_utils.dart';
 import '../models/work_report_data.dart';
-import 'package:intl/intl.dart';
 
 abstract class ReportTemplate {
   String get templateKey;
@@ -26,7 +27,7 @@ class SimpleWorkReportTemplate implements ReportTemplate {
 
   @override
   Future<pw.Document> build(WorkReportData data) async {
-    final doc = pw.Document();
+    final doc = await newPdfDocument();
 
     doc.addPage(
       pw.MultiPage(
@@ -77,7 +78,7 @@ class SimpleWorkReportTemplate implements ReportTemplate {
 
   pw.Widget _buildFilters(WorkReportData data) {
     final filters = <String>[];
-    filters.add('Period: ${fmtDate(data.startDate)} – ${fmtDate(data.endDate)}');
+    filters.add('Period: ${fmtDate(data.startDate)} - ${fmtDate(data.endDate)}');
     
     if (data.client != null) {
       filters.add('Client: ${data.client!.name}');

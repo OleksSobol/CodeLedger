@@ -133,7 +133,7 @@ class TimeTrackingPage extends ConsumerWidget {
     final month = DateRangeFilter.thisMonth();
     if (f.start == month.start && f.end == month.end) return 'This Month';
     final fmt = DateFormat.MMMd();
-    return '${fmt.format(f.start)} – ${fmt.format(f.end)}';
+    return '${fmt.format(f.start)} - ${fmt.format(f.end)}';
   }
 
   void _syncGitHub(

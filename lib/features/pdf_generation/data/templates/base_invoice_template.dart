@@ -379,8 +379,9 @@ abstract class BaseInvoiceTemplate {
       );
 
   /// Returns the extra prefix columns (date and/or issue) for a line item,
-  /// followed by the description. Caller appends qty/rate/amount.
-  List<String> lineItemPrefix(InvoiceLineItem item, String mode) {
+  /// followed by the description (if [showDescription] is true).
+  List<String> lineItemPrefix(InvoiceLineItem item, String mode,
+      {bool showDescription = true}) {
     final (:showDate, :showIssue) = decodeMode(mode);
     final parts = item.description.split(' | ');
     final hasDate =
@@ -391,29 +392,39 @@ abstract class BaseInvoiceTemplate {
     return [
       if (showDate) (hasDate ? parts.first.trim() : ''),
       if (showIssue) (item.issueReference ?? ''),
-      descText,
+      if (showDescription) descText,
     ];
   }
 
-  /// Returns column header labels for the variable prefix columns + Description.
-  List<String> lineItemPrefixHeaders(String mode) {
+  /// Returns column header labels for the variable prefix columns.
+  List<String> lineItemPrefixHeaders(String mode,
+      {bool showDescription = true}) {
     final (:showDate, :showIssue) = decodeMode(mode);
     return [
       if (showDate) 'Date',
       if (showIssue) 'Issue #',
-      'Description',
+      if (showDescription) 'Description',
     ];
   }
 
-  /// Column widths keyed by total extra prefix columns (0, 1, or 2).
-  Map<int, pw.TableColumnWidth> colWidthsForMode(String mode) {
+  /// Column widths keyed by visible column count (prefix + qty + rate + amount).
+  Map<int, pw.TableColumnWidth> colWidthsForMode(String mode,
+      {bool showDescription = true}) {
     final (:showDate, :showIssue) = decodeMode(mode);
     final extras = (showDate ? 1 : 0) + (showIssue ? 1 : 0);
-    return switch (extras) {
-      0 => colWidths4,
-      1 => colWidths5,
-      _ => colWidths6,
-    };
+    if (showDescription) {
+      return switch (extras) {
+        0 => colWidths4,
+        1 => colWidths5,
+        _ => colWidths6,
+      };
+    } else {
+      return switch (extras) {
+        0 => colWidths3,
+        1 => colWidths4NoDesc,
+        _ => colWidths5NoDesc,
+      };
+    }
   }
 
   /// 6-column widths: date + issue + desc + qty + rate + amount.
@@ -441,5 +452,31 @@ abstract class BaseInvoiceTemplate {
         1: pw.FlexColumnWidth(1.0),
         2: pw.FlexColumnWidth(1.2),
         3: pw.FlexColumnWidth(1.2),
+      };
+
+  // ── No-description variants ────────────────────────────────────────
+
+  /// 5-column widths (no desc): date + issue + qty + rate + amount.
+  Map<int, pw.TableColumnWidth> get colWidths5NoDesc => const {
+        0: pw.FlexColumnWidth(1.8),
+        1: pw.FlexColumnWidth(2.5),
+        2: pw.FlexColumnWidth(1.0),
+        3: pw.FlexColumnWidth(1.2),
+        4: pw.FlexColumnWidth(1.2),
+      };
+
+  /// 4-column widths (no desc): one extra prefix + qty + rate + amount.
+  Map<int, pw.TableColumnWidth> get colWidths4NoDesc => const {
+        0: pw.FlexColumnWidth(4.5),
+        1: pw.FlexColumnWidth(1.0),
+        2: pw.FlexColumnWidth(1.2),
+        3: pw.FlexColumnWidth(1.2),
+      };
+
+  /// 3-column widths (no prefix, no desc): qty + rate + amount.
+  Map<int, pw.TableColumnWidth> get colWidths3 => const {
+        0: pw.FlexColumnWidth(1.0),
+        1: pw.FlexColumnWidth(1.2),
+        2: pw.FlexColumnWidth(1.2),
       };
 }

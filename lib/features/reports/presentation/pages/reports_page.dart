@@ -354,7 +354,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                         child: Text(
                           _dateRange == null
                               ? 'Select dates'
-                              : '${_fmt(_dateRange!.start)} – ${_fmt(_dateRange!.end)}',
+                              : '${_fmt(_dateRange!.start)} - ${_fmt(_dateRange!.end)}',
                         ),
                       ),
                     ),
@@ -386,7 +386,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                         ),
                       ),
                       loading: () => const LinearProgressIndicator(),
-                      error: (_, __) => const Text('Error loading clients'),
+                      error: (_, _) => const Text('Error loading clients'),
                     ),
                     const SizedBox(height: 12),
 
@@ -423,7 +423,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                         );
                       },
                       loading: () => const LinearProgressIndicator(),
-                      error: (_, __) =>
+                      error: (_, _) =>
                           const Text('Error loading projects'),
                     ),
                   ],
@@ -442,7 +442,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                     Text('Timesheet', style: theme.textTheme.titleMedium),
                     const SizedBox(height: 4),
                     Text(
-                      'Clean hours sheet for employers — choose which '
+                      'Clean hours sheet for employers - choose which '
                       'columns to include.',
                       style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant),

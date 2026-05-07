@@ -31,6 +31,8 @@ class InvoiceTemplates extends Table {
       boolean().withDefault(const Constant(true))();
   BoolColumn get showLateFeeClause =>
       boolean().withDefault(const Constant(false))();
+  BoolColumn get showDescription =>
+      boolean().withDefault(const Constant(true))();
   TextColumn get footerText => text().nullable()();
   BoolColumn get isBuiltIn => boolean().withDefault(const Constant(true))();
   // 'full' | 'issue_desc' | 'desc_only'

@@ -83,21 +83,46 @@ class _AccountsSettingsPageState extends ConsumerState<AccountsSettingsPage> {
 
   Future<void> _testConnection() async {
     setState(() => _testing = true);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Theme.of(context).colorScheme.onInverseSurface,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Text('Testing GitHub connection…'),
+          ],
+        ),
+        duration: const Duration(minutes: 1),
+      ),
+    );
     try {
       final result = await ref
           .read(githubSyncNotifierProvider.notifier)
           .testConnection(
             _patCtrl.text.trim(),
             _usernameCtrl.text.trim(),
+          )
+          .timeout(
+            const Duration(seconds: 20),
+            onTimeout: () => throw 'Connection timed out — check your network or token.',
           );
 
       if (!mounted) return;
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
       await showDialog<void>(
         context: context,
         builder: (ctx) => _ConnectionResultDialog(result: result),
       );
     } catch (e) {
       if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Test failed: $e')),
         );
@@ -219,7 +244,7 @@ class _AccountsSettingsPageState extends ConsumerState<AccountsSettingsPage> {
             number: '3',
             text:
                 'Any branch named Issue-XXXX that had commits on that day will '
-                'appear in the preview — select which ones to apply.',
+                'appear in the preview - select which ones to apply.',
           ),
         ],
       ),

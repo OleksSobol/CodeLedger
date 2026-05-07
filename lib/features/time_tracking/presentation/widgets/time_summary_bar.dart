@@ -14,7 +14,7 @@ class TimeSummaryBar extends ConsumerWidget {
 
     return entriesAsync.when(
       loading: () => const SizedBox(height: 80),
-      error: (_, __) => const SizedBox.shrink(),
+      error: (_, _) => const SizedBox.shrink(),
       data: (entries) {
         final completed = entries.where((e) => e.endTime != null);
         final totalMinutes = completed.fold<int>(
@@ -60,7 +60,7 @@ class TimeSummaryBar extends ConsumerWidget {
             padding:
                 const EdgeInsets.symmetric(horizontal: Spacing.md, vertical: 4),
             itemCount: tiles.length,
-            separatorBuilder: (_, __) => const SizedBox(width: Spacing.sm),
+            separatorBuilder: (_, _) => const SizedBox(width: Spacing.sm),
             itemBuilder: (context, index) {
               final tile = tiles[index];
               return _InsightTile(

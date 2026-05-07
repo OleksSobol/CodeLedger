@@ -86,7 +86,7 @@ DateTimeRange _quarterRange(int year, int quarter) {
 String _periodCode(int year, int quarter) => 'Q$quarter$year';
 
 String _periodLabel(int year, int quarter) {
-  const labels = ['Jan–Mar', 'Apr–Jun', 'Jul–Sep', 'Oct–Dec'];
+  const labels = ['Jan-Mar', 'Apr-Jun', 'Jul-Sep', 'Oct-Dec'];
   return 'Q$quarter $year (${labels[quarter - 1]})';
 }
 
@@ -283,7 +283,7 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
     if (hasLocal) {
       buf.writeln('TAX,45,$localCode,${_taxable.toStringAsFixed(2)}');
     }
-    // Deductions — Interstate/Foreign Sales (deduction code 01)
+    // Deductions - Interstate/Foreign Sales (deduction code 01)
     if (hasDeductions) {
       buf.writeln('DED,2,01,${_deductions.toStringAsFixed(2)}');
       buf.writeln('DED,1,01,${_deductions.toStringAsFixed(2)}');
@@ -407,7 +407,7 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
   @override
   Widget build(BuildContext context) {
     // Keep gross in sync when invoices load
-    ref.listen(allInvoicesProvider, (_, __) => _refreshGross());
+    ref.listen(allInvoicesProvider, (_, _) => _refreshGross());
 
     return Scaffold(
       appBar: AppBar(
@@ -446,6 +446,7 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
                 Row(children: [
                   Expanded(
                     child: DropdownButtonFormField<int>(
+                      // ignore: deprecated_member_use
                       value: _year,
                       decoration: const InputDecoration(labelText: 'Year'),
                       items: List.generate(5, (i) {
@@ -461,13 +462,14 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
                   const SizedBox(width: 12),
                   Expanded(
                     child: DropdownButtonFormField<int>(
+                      // ignore: deprecated_member_use
                       value: _quarter,
                       decoration: const InputDecoration(labelText: 'Quarter'),
                       items: const [
-                        DropdownMenuItem(value: 1, child: Text('Q1 (Jan–Mar)')),
-                        DropdownMenuItem(value: 2, child: Text('Q2 (Apr–Jun)')),
-                        DropdownMenuItem(value: 3, child: Text('Q3 (Jul–Sep)')),
-                        DropdownMenuItem(value: 4, child: Text('Q4 (Oct–Dec)')),
+                        DropdownMenuItem(value: 1, child: Text('Q1 (Jan-Mar)')),
+                        DropdownMenuItem(value: 2, child: Text('Q2 (Apr-Jun)')),
+                        DropdownMenuItem(value: 3, child: Text('Q3 (Jul-Sep)')),
+                        DropdownMenuItem(value: 4, child: Text('Q4 (Oct-Dec)')),
                       ],
                       onChanged: (v) {
                         setState(() => _quarter = v!);
@@ -668,10 +670,10 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
                         fontWeight: FontWeight.bold)),
                 const SizedBox(height: 12),
                 _SummarySection(
-                  label: 'Business & Occupation — Retailing',
+                  label: 'Business & Occupation - Retailing',
                   rows: [
                     _TaxRow('Gross', cur.format(_gross)),
-                    _TaxRow('Deductions', 'âˆ’ ${cur.format(_deductions)}'),
+                    _TaxRow('Deductions', '- ${cur.format(_deductions)}'),
                     _TaxRow('Taxable', cur.format(_taxable), bold: true),
                     _TaxRow(
                         'Rate',
@@ -683,10 +685,10 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
                 ),
                 const Divider(height: 24),
                 _SummarySection(
-                  label: 'State Sales and Use — Retail Sales',
+                  label: 'State Sales and Use - Retail Sales',
                   rows: [
                     _TaxRow('Gross', cur.format(_gross)),
-                    _TaxRow('Deductions', 'âˆ’ ${cur.format(_deductions)}'),
+                    _TaxRow('Deductions', '- ${cur.format(_deductions)}'),
                     _TaxRow('Taxable', cur.format(_taxable), bold: true),
                     _TaxRow('Rate', pct.format(_stateSalesRate)),
                     _TaxRow('State Sales Tax Due', cur.format(_stateSalesTax),
@@ -697,7 +699,7 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
                   const Divider(height: 24),
                   _SummarySection(
                     label:
-                        'Local Sales Tax — ${_localNameCtrl.text.isNotEmpty ? _localNameCtrl.text : _localCodeCtrl.text}',
+                        'Local Sales Tax - ${_localNameCtrl.text.isNotEmpty ? _localNameCtrl.text : _localCodeCtrl.text}',
                     rows: [
                       _TaxRow('Taxable', cur.format(_taxable), bold: true),
                       _TaxRow('Rate', pct.format(_localRate)),
@@ -709,7 +711,7 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
                 const Divider(height: 24),
                 _TaxRow('Total Tax', cur.format(_totalTax), bold: true),
                 if (_credits > 0)
-                  _TaxRow('Credits', 'âˆ’ ${cur.format(_credits)}',
+                  _TaxRow('Credits', '- ${cur.format(_credits)}',
                       color: Colors.green),
                 const SizedBox(height: 4),
                 Container(
@@ -746,7 +748,7 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
           controller: _notesCtrl,
           decoration: const InputDecoration(
             labelText: 'Notes (optional)',
-            hintText: 'e.g. Submitted via MyDOR — Confirmation #...',
+            hintText: 'e.g. Submitted via MyDOR - Confirmation #...',
             border: OutlineInputBorder(),
           ),
           maxLines: 2,
@@ -769,7 +771,7 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
         Text(
           'CSV uses WA DOR data upload format: ACCOUNT + TAX lines (B&O Retailing line 2, '
           'State Sales line 1, Local line 45) + DED lines for apportionment (code 01). '
-          'Upload at MyDOR â†’ Excise Tax Return â†’ Upload a file.',
+          'Upload at MyDOR to Excise Tax Return to Upload a file.',
           style: theme.textTheme.bodySmall
               ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
         ),
@@ -802,7 +804,7 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
     return ListView.separated(
       padding: const EdgeInsets.all(16),
       itemCount: _submissions.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
+      separatorBuilder: (_, _) => const SizedBox(height: 8),
       itemBuilder: (context, i) {
         final s = _submissions[i];
         return Card(
@@ -858,13 +860,13 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
                 const SizedBox(height: 8),
                 _TaxRow('Gross', cur.format(s.grossAmount)),
                 if (s.deductions > 0)
-                  _TaxRow('Deductions', 'âˆ’ ${cur.format(s.deductions)}'),
+                  _TaxRow('Deductions', '- ${cur.format(s.deductions)}'),
                 _TaxRow('Taxable', cur.format(s.taxableAmount), bold: true),
                 _TaxRow('B&O Tax', cur.format(s.boTax)),
                 _TaxRow('State Sales Tax', cur.format(s.stateSalesTax)),
                 if (s.localTax > 0) _TaxRow('Local Tax', cur.format(s.localTax)),
                 if (s.credits > 0)
-                  _TaxRow('Credits', 'âˆ’ ${cur.format(s.credits)}',
+                  _TaxRow('Credits', '- ${cur.format(s.credits)}',
                       color: Colors.green),
                 const Divider(height: 12),
                 _TaxRow('Total Paid', cur.format(s.totalDue),

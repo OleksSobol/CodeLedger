@@ -13,7 +13,7 @@ class OutstandingInvoicesCard extends ConsumerWidget {
 
     return outstandingAsync.when(
       loading: () => const SizedBox.shrink(),
-      error: (_, __) => const SizedBox.shrink(),
+      error: (_, _) => const SizedBox.shrink(),
       data: (summary) {
         if (summary.count == 0) {
           return Card(

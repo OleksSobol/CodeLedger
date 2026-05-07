@@ -287,17 +287,33 @@ class _SummaryCard extends StatelessWidget {
     return Expanded(
       child: Card(
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
           child: Column(
             children: [
-              Text(label,
-                  style: Theme.of(context).textTheme.labelSmall),
+              Text(
+                label,
+                style: Theme.of(context).textTheme.labelSmall,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+              ),
               const SizedBox(height: 4),
-              Text(value,
-                  style: Theme.of(context).textTheme.titleMedium),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  value,
+                  style: Theme.of(context).textTheme.titleMedium,
+                  maxLines: 1,
+                  textAlign: TextAlign.center,
+                ),
+              ),
               if (subtitle != null)
-                Text(subtitle!,
-                    style: Theme.of(context).textTheme.bodySmall),
+                Text(
+                  subtitle!,
+                  style: Theme.of(context).textTheme.bodySmall,
+                  maxLines: 1,
+                  textAlign: TextAlign.center,
+                ),
             ],
           ),
         ),

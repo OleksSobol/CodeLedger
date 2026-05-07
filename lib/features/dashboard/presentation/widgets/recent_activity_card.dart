@@ -27,7 +27,7 @@ class RecentActivitySliver extends ConsumerWidget {
 
     return recentAsync.when(
       loading: () => const SliverToBoxAdapter(child: SizedBox.shrink()),
-      error: (_, __) => const SliverToBoxAdapter(child: SizedBox.shrink()),
+      error: (_, _) => const SliverToBoxAdapter(child: SizedBox.shrink()),
       data: (entries) {
         final completed =
             entries.where((e) => e.endTime != null).take(5).toList();
@@ -182,7 +182,7 @@ class _InteractiveEntryTile extends ConsumerWidget {
                 'Date', dateFmt.format(entry.startTime)),
             _DetailRow(
                 'Time',
-                '${timeFmt.format(entry.startTime)} – '
+                '${timeFmt.format(entry.startTime)} - '
                     '${entry.endTime != null ? timeFmt.format(entry.endTime!) : 'Running'}'),
             _DetailRow('Duration', formatDuration(minutes)),
             _DetailRow('Rate',

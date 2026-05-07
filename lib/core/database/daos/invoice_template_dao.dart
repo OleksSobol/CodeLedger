@@ -52,9 +52,17 @@ class InvoiceTemplateDao extends DatabaseAccessor<AppDatabase>
     return into(invoiceTemplates).insert(companion);
   }
 
-  /// Delete a template.
-  Future<int> deleteTemplate(int id) {
-    return (delete(invoiceTemplates)..where((t) => t.id.equals(id))).go();
+  /// Clear all nullable FK references to this template, then delete it.
+  Future<void> deleteTemplate(int id) async {
+    await customStatement(
+        'UPDATE invoices SET template_id = NULL WHERE template_id = ?', [id]);
+    await customStatement(
+        'UPDATE clients SET default_template_id = NULL WHERE default_template_id = ?',
+        [id]);
+    await customStatement(
+        'UPDATE user_profiles SET default_template_id = NULL WHERE default_template_id = ?',
+        [id]);
+    await (delete(invoiceTemplates)..where((t) => t.id.equals(id))).go();
   }
 
   /// Set a template as default (clear others first).

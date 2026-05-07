@@ -20,9 +20,27 @@ class InvoicesListPage extends ConsumerWidget {
     final currentFilter = ref.watch(invoiceStatusFilterProvider);
     final theme = Theme.of(context);
 
+    final draftCount = ref.watch(allInvoicesProvider).maybeWhen(
+      data: (list) => list.where((i) => i.status == 'draft').length,
+      orElse: () => 0,
+    );
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Invoices'),
+        actions: [
+          IconButton(
+            tooltip: draftCount > 0
+                ? '$draftCount draft${draftCount == 1 ? '' : 's'} ready to send'
+                : 'Send Invoices',
+            icon: Badge(
+              isLabelVisible: draftCount > 0,
+              label: Text('$draftCount'),
+              child: const Icon(Icons.outgoing_mail),
+            ),
+            onPressed: () => context.push('/invoices/send'),
+          ),
+        ],
       ),
       floatingActionButton: _NewInvoiceFab(),
       body: Column(

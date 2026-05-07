@@ -1,5 +1,6 @@
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
+import '../../../../core/utils/pdf_font_utils.dart';
 import 'base_invoice_template.dart';
 import '../models/pdf_invoice_data.dart';
 
@@ -13,7 +14,7 @@ class MinimalTemplate extends BaseInvoiceTemplate {
 
   @override
   Future<pw.Document> build(PdfInvoiceData data) async {
-    final doc = pw.Document();
+    final doc = await newPdfDocument();
 
     doc.addPage(
       pw.MultiPage(
@@ -146,6 +147,7 @@ class MinimalTemplate extends BaseInvoiceTemplate {
 
   pw.Widget _buildLineItemsTable(PdfInvoiceData data) {
     final mode = data.template.lineItemDisplayMode;
+    final showDesc = data.template.showDescription;
 
     return pw.TableHelper.fromTextArray(
       border: null,
@@ -159,16 +161,16 @@ class MinimalTemplate extends BaseInvoiceTemplate {
       cellStyle: const pw.TextStyle(fontSize: 9),
       cellAlignment: pw.Alignment.centerLeft,
       cellPadding: const pw.EdgeInsets.symmetric(vertical: 4, horizontal: 2),
-      columnWidths: colWidthsForMode(mode),
+      columnWidths: colWidthsForMode(mode, showDescription: showDesc),
       headerAlignment: pw.Alignment.centerLeft,
       headers: [
-        ...lineItemPrefixHeaders(mode),
+        ...lineItemPrefixHeaders(mode, showDescription: showDesc),
         'Qty',
         'Rate',
         'Amount',
       ],
       data: data.lineItems.map((item) {
-        final prefix = lineItemPrefix(item, mode);
+        final prefix = lineItemPrefix(item, mode, showDescription: showDesc);
         return [
           ...prefix,
           item.quantity.toStringAsFixed(2),
