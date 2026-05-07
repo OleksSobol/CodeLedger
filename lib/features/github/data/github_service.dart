@@ -40,10 +40,13 @@ class GitHubService {
     return s;
   }
 
+  static const _timeout = Duration(seconds: 15);
+
   /// Verifies the PAT by calling /user.
   Future<String> verifyPat() async {
     final uri = Uri.parse('https://api.github.com/user');
-    final response = await http.get(uri, headers: _headers);
+    final response =
+        await http.get(uri, headers: _headers).timeout(_timeout);
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       return data['login'] as String? ?? 'unknown';
@@ -60,7 +63,8 @@ class GitHubService {
     _log('Checking access to $repo…');
     final uri = Uri.parse('https://api.github.com/repos/$repo');
     try {
-      final response = await http.get(uri, headers: _headers);
+      final response =
+          await http.get(uri, headers: _headers).timeout(_timeout);
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         final name = data['full_name'] ?? repo;
