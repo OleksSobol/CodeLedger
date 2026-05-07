@@ -72,7 +72,7 @@ class TimesheetTemplate implements ReportTemplate {
 
         if (columns.showStartEnd) {
           row.add(_fmtTime(e.startTime));
-          row.add(e.endTime != null ? _fmtTime(e.endTime!) : '—');
+          row.add(e.endTime != null ? _fmtTime(e.endTime!) : '-');
         }
         row.add(_fmtHours(e.durationMinutes ?? 0));
 
@@ -156,7 +156,7 @@ class TimesheetTemplate implements ReportTemplate {
 
   pw.Widget _buildHeader(WorkReportData data) {
     final period =
-        '${DateFormat.yMMMd().format(data.startDate)} – ${DateFormat.yMMMd().format(data.endDate)}';
+        '${DateFormat.yMMMd().format(data.startDate)} - ${DateFormat.yMMMd().format(data.endDate)}';
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [

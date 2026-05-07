@@ -130,7 +130,7 @@ class GitHubSyncNotifier extends AsyncNotifier<void> {
 
     service.logs.add(SyncLog(
       'Scanning ${linkedProjects.length} linked project(s) for '
-      '${_fmtDate(day)} – ${_fmtDate(endDay.subtract(const Duration(days: 1)))}',
+      '${_fmtDate(day)} - ${_fmtDate(endDay.subtract(const Duration(days: 1)))}',
       SyncLogLevel.info,
     ));
 
@@ -206,7 +206,7 @@ class GitHubSyncNotifier extends AsyncNotifier<void> {
     }
 
     service.logs.add(SyncLog(
-      'Scan complete — ${matches.length} match(es) found.',
+      'Scan complete - ${matches.length} match(es) found.',
       SyncLogLevel.info,
     ));
 

@@ -83,8 +83,8 @@ class _TimeRangeRow extends StatelessWidget {
       children: [
         Text(
           isRunning
-              ? '${fmt.format(entry.startTime)} – ...'
-              : '${fmt.format(entry.startTime)} – ${fmt.format(entry.endTime!)}',
+              ? '${fmt.format(entry.startTime)} - ...'
+              : '${fmt.format(entry.startTime)} - ${fmt.format(entry.endTime!)}',
           style: theme.textTheme.bodyMedium,
         ),
         const Spacer(),

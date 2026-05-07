@@ -219,7 +219,7 @@ class _AccountsSettingsPageState extends ConsumerState<AccountsSettingsPage> {
             number: '3',
             text:
                 'Any branch named Issue-XXXX that had commits on that day will '
-                'appear in the preview — select which ones to apply.',
+                'appear in the preview - select which ones to apply.',
           ),
         ],
       ),

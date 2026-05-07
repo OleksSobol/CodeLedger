@@ -226,7 +226,7 @@ class _ActiveTimerCardState extends ConsumerState<ActiveTimerCard>
           title: const Text('Overlapping Entry'),
           content: Text(
             'Clocking out now overlaps with an entry from '
-            '${timeFmt.format(overlap.startTime)} – '
+            '${timeFmt.format(overlap.startTime)} - '
             '${timeFmt.format(overlap.endTime!)}.\n\n'
             'Adjust the conflicting entry to make room?',
           ),

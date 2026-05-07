@@ -151,7 +151,7 @@ class _EditTimeEntryPageState extends ConsumerState<EditTimeEntryPage> {
           SnackBar(
             content: Text(
               'Overlaps with entry: '
-              '${timeFmt.format(overlapping.startTime)} – '
+              '${timeFmt.format(overlapping.startTime)} - '
               '${timeFmt.format(overlapping.endTime!)}',
             ),
             duration: const Duration(seconds: 4),

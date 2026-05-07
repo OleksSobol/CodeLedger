@@ -53,7 +53,7 @@ class GitHubService {
       final data = jsonDecode(response.body) as Map<String, dynamic>;
       return data['login'] as String? ?? 'unknown';
     } else if (response.statusCode == 401) {
-      throw 'Invalid PAT — authentication failed (401)';
+      throw 'Invalid PAT - authentication failed (401)';
     } else {
       throw 'Unexpected response: HTTP ${response.statusCode}';
     }
@@ -73,7 +73,7 @@ class GitHubService {
         _log('✓ Connected to $name (${isPrivate ? 'private' : 'public'})');
         return true;
       } else if (response.statusCode == 401) {
-        _log('✗ Authentication failed — check your GitHub PAT', SyncLogLevel.error);
+        _log('✗ Authentication failed - check your GitHub PAT', SyncLogLevel.error);
       } else if (response.statusCode == 404) {
         _log('✗ $repo not found or PAT lacks access (404)', SyncLogLevel.error);
       } else {
@@ -138,7 +138,7 @@ class GitHubService {
                 .then((has) => has ? branch : null)),
       );
       for (final branch in results.whereType<String>()) {
-        _log('  ✓ $branch — commit by $username in window');
+        _log('  ✓ $branch - commit by $username in window');
         found.add(branch);
       }
     }

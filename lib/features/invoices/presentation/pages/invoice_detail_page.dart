@@ -245,7 +245,7 @@ class InvoiceDetailPage extends ConsumerWidget {
           .replaceAll('{number}', invoice.invoiceNumber)
           .replaceAll('{client}', '')
           .replaceAll('{period}', invoice.periodStart != null
-              ? '${DateFormat.yMMMd().format(invoice.periodStart!)} – ${DateFormat.yMMMd().format(invoice.periodEnd!)}'
+              ? '${DateFormat.yMMMd().format(invoice.periodStart!)} - ${DateFormat.yMMMd().format(invoice.periodEnd!)}'
               : '');
 
       // Get client email
@@ -325,7 +325,7 @@ class _InvoiceDetailBody extends ConsumerWidget {
                   _InfoRow(
                     label: 'Period',
                     value:
-                        '${dateFmt.format(invoice.periodStart!)} – ${dateFmt.format(invoice.periodEnd!)}',
+                        '${dateFmt.format(invoice.periodStart!)} - ${dateFmt.format(invoice.periodEnd!)}',
                   ),
                 if (invoice.sentDate != null)
                   _InfoRow(

@@ -212,8 +212,8 @@ class TimeEntryTile extends ConsumerWidget {
                   const SizedBox(width: 6),
                   Text(
                     isRunning
-                        ? '${timeFmt.format(entry.startTime)} – running'
-                        : '${timeFmt.format(entry.startTime)} – ${timeFmt.format(entry.endTime!)}',
+                        ? '${timeFmt.format(entry.startTime)} - running'
+                        : '${timeFmt.format(entry.startTime)} - ${timeFmt.format(entry.endTime!)}',
                     style: theme.textTheme.bodyMedium,
                   ),
                   if (!isRunning) ...[

@@ -15,8 +15,8 @@ class DateRangeSelector extends ConsumerWidget {
 
     final selected = _selectedSegment(filter);
     final rangeText = selected == 'custom'
-        ? '${fmt.format(filter.start)} – ${fmt.format(filter.end.subtract(const Duration(days: 1)))}'
-        : '${fmt.format(filter.start)} – ${fmt.format(filter.end.subtract(const Duration(days: 1)))}';
+        ? '${fmt.format(filter.start)} - ${fmt.format(filter.end.subtract(const Duration(days: 1)))}'
+        : '${fmt.format(filter.start)} - ${fmt.format(filter.end.subtract(const Duration(days: 1)))}';
 
     return Padding(
       padding: const EdgeInsets.symmetric(

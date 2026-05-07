@@ -182,7 +182,7 @@ class _InteractiveEntryTile extends ConsumerWidget {
                 'Date', dateFmt.format(entry.startTime)),
             _DetailRow(
                 'Time',
-                '${timeFmt.format(entry.startTime)} – '
+                '${timeFmt.format(entry.startTime)} - '
                     '${entry.endTime != null ? timeFmt.format(entry.endTime!) : 'Running'}'),
             _DetailRow('Duration', formatDuration(minutes)),
             _DetailRow('Rate',

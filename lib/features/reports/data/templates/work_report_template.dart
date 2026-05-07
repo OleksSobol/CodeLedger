@@ -77,7 +77,7 @@ class SimpleWorkReportTemplate implements ReportTemplate {
 
   pw.Widget _buildFilters(WorkReportData data) {
     final filters = <String>[];
-    filters.add('Period: ${fmtDate(data.startDate)} – ${fmtDate(data.endDate)}');
+    filters.add('Period: ${fmtDate(data.startDate)} - ${fmtDate(data.endDate)}');
     
     if (data.client != null) {
       filters.add('Client: ${data.client!.name}');
