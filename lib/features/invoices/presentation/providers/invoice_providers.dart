@@ -435,6 +435,74 @@ class InvoiceNotifier extends AsyncNotifier<void> {
     ref.invalidate(allInvoicesProvider);
   }
 
+  /// Append additional time entries to an existing draft invoice, grouping
+  /// by (date, hourly rate) the same way createInvoice does.
+  Future<void> addEntriesToInvoice({
+    required int invoiceId,
+    required List<TimeEntry> entries,
+  }) async {
+    if (entries.isEmpty) return;
+
+    final lineItems = <InvoiceLineItemsCompanion>[];
+    final dateFmt = DateFormat.yMMMd();
+
+    final groups = <(String, double), List<TimeEntry>>{};
+    for (final entry in entries) {
+      final key = (dateFmt.format(entry.startTime), entry.hourlyRateSnapshot);
+      (groups[key] ??= []).add(entry);
+    }
+
+    final sortedKeys = groups.keys.toList()
+      ..sort((a, b) => groups[a]!.first.startTime
+          .compareTo(groups[b]!.first.startTime));
+
+    for (final key in sortedKeys) {
+      final groupEntries = groups[key]!;
+      final dateStr = key.$1;
+      final rate = key.$2;
+
+      final totalHours = groupEntries.fold<double>(
+          0, (sum, e) => sum + (e.durationMinutes ?? 0) / 60.0);
+      final descriptions = groupEntries
+          .map((e) => e.description ?? 'Work session')
+          .join('; ');
+      final desc = '$dateStr | $descriptions';
+
+      final issueRefs = groupEntries
+          .map((e) => e.issueReference)
+          .whereType<String>()
+          .where((s) => s.isNotEmpty)
+          .toSet()
+          .join(', ');
+
+      final projectIds = groupEntries.map((e) => e.projectId).toSet();
+      final sharedProject =
+          projectIds.length == 1 ? projectIds.first : null;
+
+      lineItems.add(InvoiceLineItemsCompanion.insert(
+        invoiceId: 0, // overwritten by DAO
+        description: desc,
+        quantity: totalHours,
+        unitPrice: rate,
+        total: totalHours * rate,
+        projectId: Value(sharedProject),
+        issueReference: Value(issueRefs.isEmpty ? null : issueRefs),
+      ));
+    }
+
+    await _invoiceDao.appendLineItems(
+      invoiceId: invoiceId,
+      lineItems: lineItems,
+      timeEntryIds: entries.map((e) => e.id).toList(),
+    );
+
+    ref.invalidate(invoiceDetailProvider(invoiceId));
+    ref.invalidate(invoiceLineItemsProvider(invoiceId));
+    ref.invalidate(allInvoicesProvider);
+    ref.invalidate(uninvoicedByClientProvider);
+    ref.invalidate(monthlyIncomeProvider);
+  }
+
   /// Rename an invoice number.
   Future<void> updateInvoiceNumber(int invoiceId, String invoiceNumber) async {
     await _invoiceDao.updateInvoiceNumber(invoiceId, invoiceNumber);

@@ -17,6 +17,7 @@ import '../../features/invoices/presentation/pages/invoice_detail_page.dart';
 import '../../features/invoices/presentation/pages/invoice_wizard_page.dart';
 import '../../features/invoices/presentation/pages/manual_invoice_page.dart';
 import '../../features/invoices/presentation/pages/edit_draft_invoice_page.dart';
+import '../../features/invoices/presentation/pages/add_time_to_invoice_page.dart';
 import '../../features/reports/presentation/pages/reports_page.dart';
 import '../../features/backup/presentation/pages/backup_page.dart';
 import '../../features/settings/presentation/pages/settings_page.dart';
@@ -132,6 +133,17 @@ final appRouter = GoRouter(
       builder: (context, state) {
         final invoice = state.extra as Invoice;
         return EditDraftInvoicePage(invoice: invoice);
+      },
+    ),
+
+    // Append more time entries to a draft invoice
+    GoRoute(
+      path: '/invoices/:invoiceId/add-time',
+      name: 'invoiceAddTime',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) {
+        final invoice = state.extra as Invoice;
+        return AddTimeToInvoicePage(invoice: invoice);
       },
     ),
 

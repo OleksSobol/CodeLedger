@@ -490,45 +490,61 @@ class _InvoiceDetailBody extends ConsumerWidget {
     final notifier = ref.read(invoiceNotifierProvider.notifier);
 
     return switch (inv.status) {
-      'draft' => Row(
+      'draft' => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: () async {
-                  final confirm = await showDialog<bool>(
-                    context: context,
-                    builder: (ctx) => AlertDialog(
-                      title: const Text('Delete Draft'),
-                      content: const Text(
-                          'This will delete the draft and unmark all linked time entries.'),
-                      actions: [
-                        TextButton(
-                            onPressed: () => Navigator.pop(ctx, false),
-                            child: const Text('Cancel')),
-                        FilledButton(
-                            onPressed: () => Navigator.pop(ctx, true),
-                            child: const Text('Delete')),
-                      ],
-                    ),
-                  );
-                  if (confirm == true && context.mounted) {
-                    await notifier.deleteDraft(inv.id);
-                    if (context.mounted) Navigator.of(context).pop();
-                  }
-                },
-                icon: const Icon(Icons.delete_outline),
-                label: const Text('Delete'),
+            OutlinedButton.icon(
+              onPressed: () => context.push(
+                '/invoices/${inv.id}/add-time',
+                extra: inv,
               ),
+              icon: const Icon(Icons.add_circle_outline),
+              label: const Text('Add More Time Entries'),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: FilledButton.icon(
-                onPressed: () async {
-                  await notifier.updateStatus(inv.id, 'sent');
-                },
-                icon: const Icon(Icons.send),
-                label: const Text('Mark Sent'),
-              ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () async {
+                      final confirm = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('Delete Draft'),
+                          content: const Text(
+                              'This will delete the draft and unmark all linked time entries.'),
+                          actions: [
+                            TextButton(
+                                onPressed: () =>
+                                    Navigator.pop(ctx, false),
+                                child: const Text('Cancel')),
+                            FilledButton(
+                                onPressed: () =>
+                                    Navigator.pop(ctx, true),
+                                child: const Text('Delete')),
+                          ],
+                        ),
+                      );
+                      if (confirm == true && context.mounted) {
+                        await notifier.deleteDraft(inv.id);
+                        if (context.mounted) Navigator.of(context).pop();
+                      }
+                    },
+                    icon: const Icon(Icons.delete_outline),
+                    label: const Text('Delete'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: () async {
+                      await notifier.updateStatus(inv.id, 'sent');
+                    },
+                    icon: const Icon(Icons.send),
+                    label: const Text('Mark Sent'),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
