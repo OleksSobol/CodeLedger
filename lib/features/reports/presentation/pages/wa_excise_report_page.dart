@@ -671,12 +671,12 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
                   label: 'Business & Occupation — Retailing',
                   rows: [
                     _TaxRow('Gross', cur.format(_gross)),
-                    _TaxRow('Deductions', 'âˆ’ ${cur.format(_deductions)}'),
-                    _TaxRow('Taxable', cur.format(_taxable), bold: true),
+                    _TaxRow(‘Deductions’, ‘- ${cur.format(_deductions)}’),
+                    _TaxRow(‘Taxable’, cur.format(_taxable), bold: true),
                     _TaxRow(
-                        'Rate',
+                        ‘Rate’,
                         pct.format(_boRate)),
-                    _TaxRow('B&O Tax Due', cur.format(_boTax),
+                    _TaxRow(‘B&O Tax Due’, cur.format(_boTax),
                         bold: true,
                         color: theme.colorScheme.primary),
                   ],
@@ -686,9 +686,9 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
                   label: 'State Sales and Use — Retail Sales',
                   rows: [
                     _TaxRow('Gross', cur.format(_gross)),
-                    _TaxRow('Deductions', 'âˆ’ ${cur.format(_deductions)}'),
-                    _TaxRow('Taxable', cur.format(_taxable), bold: true),
-                    _TaxRow('Rate', pct.format(_stateSalesRate)),
+                    _TaxRow(‘Deductions’, ‘- ${cur.format(_deductions)}’),
+                    _TaxRow(‘Taxable’, cur.format(_taxable), bold: true),
+                    _TaxRow(‘Rate’, pct.format(_stateSalesRate)),
                     _TaxRow('State Sales Tax Due', cur.format(_stateSalesTax),
                         bold: true, color: theme.colorScheme.primary),
                   ],
@@ -709,7 +709,7 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
                 const Divider(height: 24),
                 _TaxRow('Total Tax', cur.format(_totalTax), bold: true),
                 if (_credits > 0)
-                  _TaxRow('Credits', 'âˆ’ ${cur.format(_credits)}',
+                  _TaxRow(‘Credits’, ‘- ${cur.format(_credits)}’,
                       color: Colors.green),
                 const SizedBox(height: 4),
                 Container(
@@ -769,7 +769,7 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
         Text(
           'CSV uses WA DOR data upload format: ACCOUNT + TAX lines (B&O Retailing line 2, '
           'State Sales line 1, Local line 45) + DED lines for apportionment (code 01). '
-          'Upload at MyDOR â†’ Excise Tax Return â†’ Upload a file.',
+          ‘Upload at MyDOR -> Excise Tax Return -> Upload a file.’,
           style: theme.textTheme.bodySmall
               ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
         ),
@@ -858,13 +858,13 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
                 const SizedBox(height: 8),
                 _TaxRow('Gross', cur.format(s.grossAmount)),
                 if (s.deductions > 0)
-                  _TaxRow('Deductions', 'âˆ’ ${cur.format(s.deductions)}'),
+                  _TaxRow(‘Deductions’, ‘- ${cur.format(s.deductions)}’),
                 _TaxRow('Taxable', cur.format(s.taxableAmount), bold: true),
                 _TaxRow('B&O Tax', cur.format(s.boTax)),
                 _TaxRow('State Sales Tax', cur.format(s.stateSalesTax)),
                 if (s.localTax > 0) _TaxRow('Local Tax', cur.format(s.localTax)),
                 if (s.credits > 0)
-                  _TaxRow('Credits', 'âˆ’ ${cur.format(s.credits)}',
+                  _TaxRow(‘Credits’, ‘- ${cur.format(s.credits)}’,
                       color: Colors.green),
                 const Divider(height: 12),
                 _TaxRow('Total Paid', cur.format(s.totalDue),
