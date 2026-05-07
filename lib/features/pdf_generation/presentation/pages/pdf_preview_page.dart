@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:printing/printing.dart';
 import '../../../../core/database/app_database.dart';
+import '../../../invoices/presentation/providers/invoice_providers.dart';
 import '../../../invoices/presentation/providers/template_providers.dart';
 import '../providers/pdf_providers.dart';
 
@@ -22,10 +23,21 @@ class PdfPreviewPage extends ConsumerStatefulWidget {
 
 class _PdfPreviewPageState extends ConsumerState<PdfPreviewPage> {
   int? _selectedTemplateId;
+  bool _initialized = false;
 
   @override
   Widget build(BuildContext context) {
     final templatesAsync = ref.watch(allTemplatesProvider);
+    final invoiceAsync = ref.watch(invoiceDetailProvider(widget.invoiceId));
+
+    if (!_initialized) {
+      invoiceAsync.whenData((invoice) {
+        if (!_initialized) {
+          _selectedTemplateId = invoice.templateId;
+          _initialized = true;
+        }
+      });
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -38,8 +50,19 @@ class _PdfPreviewPageState extends ConsumerState<PdfPreviewPage> {
               child: _TemplateSelector(
                 templates: templates,
                 selectedId: _selectedTemplateId,
-                onChanged: (id) {
+                onChanged: (id) async {
                   setState(() => _selectedTemplateId = id);
+                  await ref
+                      .read(invoiceNotifierProvider.notifier)
+                      .setInvoiceTemplate(widget.invoiceId, id);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Template saved for this invoice'),
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  }
                 },
               ),
             ),

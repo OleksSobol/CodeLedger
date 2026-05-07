@@ -427,6 +427,14 @@ class InvoiceNotifier extends AsyncNotifier<void> {
     ref.invalidate(invoiceDetailProvider(invoiceId));
   }
 
+  /// Persist the user's chosen PDF template so the email/share flow uses
+  /// the same style that was previewed.
+  Future<void> setInvoiceTemplate(int invoiceId, int? templateId) async {
+    await _invoiceDao.updateTemplate(invoiceId, templateId);
+    ref.invalidate(invoiceDetailProvider(invoiceId));
+    ref.invalidate(allInvoicesProvider);
+  }
+
   /// Rename an invoice number.
   Future<void> updateInvoiceNumber(int invoiceId, String invoiceNumber) async {
     await _invoiceDao.updateInvoiceNumber(invoiceId, invoiceNumber);

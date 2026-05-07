@@ -286,6 +286,16 @@ class InvoiceDao extends DatabaseAccessor<AppDatabase>
         .then((rows) => rows > 0);
   }
 
+  /// Set or clear the invoice's chosen PDF template.
+  Future<bool> updateTemplate(int invoiceId, int? templateId) {
+    return (update(invoices)..where((t) => t.id.equals(invoiceId)))
+        .write(InvoicesCompanion(
+          templateId: Value(templateId),
+          updatedAt: Value(DateTime.now()),
+        ))
+        .then((rows) => rows > 0);
+  }
+
   /// Update invoice PDF path.
   Future<bool> updatePdfPath(int invoiceId, String path) {
     return (update(invoices)..where((t) => t.id.equals(invoiceId)))
