@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/providers/app_version_provider.dart';
+import '../../../../core/providers/landing_route_provider.dart';
 import '../../../../core/providers/theme_provider.dart';
 
 class SettingsPage extends ConsumerWidget {
@@ -83,6 +84,7 @@ class SettingsPage extends ConsumerWidget {
 
           // --- Appearance section ---
           _SectionHeader(title: 'Appearance'),
+          _LandingRouteTile(),
           ListTile(
             leading: Icon(_themeIcon(themeMode),
                 color: theme.colorScheme.primary),
@@ -146,6 +148,42 @@ class _SectionHeader extends StatelessWidget {
         style: Theme.of(context).textTheme.labelLarge?.copyWith(
               color: Theme.of(context).colorScheme.primary,
             ),
+      ),
+    );
+  }
+}
+
+class _LandingRouteTile extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final current =
+        ref.watch(landingRouteProvider).value ?? defaultLandingRoute;
+    final currentLabel = landingRouteOptions
+        .firstWhere(
+          (o) => o.value == current,
+          orElse: () => landingRouteOptions.first,
+        )
+        .label;
+
+    return ListTile(
+      leading:
+          Icon(Icons.home_outlined, color: theme.colorScheme.primary),
+      title: const Text('Default Page on Launch'),
+      subtitle: Text(currentLabel),
+      trailing: DropdownButton<String>(
+        value: current,
+        underline: const SizedBox.shrink(),
+        items: landingRouteOptions
+            .map((o) => DropdownMenuItem<String>(
+                  value: o.value,
+                  child: Text(o.label),
+                ))
+            .toList(),
+        onChanged: (route) {
+          if (route == null) return;
+          ref.read(landingRouteProvider.notifier).setRoute(route);
+        },
       ),
     );
   }
