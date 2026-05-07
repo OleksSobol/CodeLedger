@@ -1,0 +1,98 @@
+name: Nightly APK
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nightly
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for new commits in last 24h
+        id: changes
+        run: |
+          if [ -z "$(git log --since='24 hours ago' --oneline)" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "No commits in last 24h, skipping build."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Java
+        if: steps.changes.outputs.skip == 'false'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        if: steps.changes.outputs.skip == 'false'
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Get dependencies
+        if: steps.changes.outputs.skip == 'false'
+        run: flutter pub get
+
+      - name: Run code generation
+        if: steps.changes.outputs.skip == 'false'
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Build release APK
+        if: steps.changes.outputs.skip == 'false'
+        run: flutter build apk --release
+
+      - name: Read version
+        if: steps.changes.outputs.skip == 'false'
+        id: version
+        run: |
+          v=$(grep '^version:' pubspec.yaml | awk '{print $2}')
+          echo "value=$v" >> "$GITHUB_OUTPUT"
+
+      - name: Rename APK
+        if: steps.changes.outputs.skip == 'false'
+        run: |
+          mkdir -p dist
+          cp build/app/outputs/flutter-apk/app-release.apk \
+            "dist/code-ledger-nightly-${{ steps.version.outputs.value }}-${GITHUB_SHA::7}.apk"
+
+      - name: Build changelog (last 24h)
+        if: steps.changes.outputs.skip == 'false'
+        id: changelog
+        run: |
+          {
+            echo 'body<<CHANGELOG_EOF'
+            echo "Nightly build $(date -u +'%Y-%m-%d') from commit ${GITHUB_SHA::7}."
+            echo ''
+            echo 'Recent changes:'
+            git log --since='24 hours ago' --pretty=format:'- %s' \
+              | sed 's/[\xE2\x80\x93\xE2\x80\x94]/-/g; s/[\xE2\x86\x92\xE2\x86\x90]/to/g'
+            echo ''
+            echo 'CHANGELOG_EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Update rolling nightly pre-release
+        if: steps.changes.outputs.skip == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: nightly
+          name: Nightly build
+          prerelease: true
+          body: ${{ steps.changelog.outputs.body }}
+          files: dist/*.apk
+          fail_on_unmatched_files: true
