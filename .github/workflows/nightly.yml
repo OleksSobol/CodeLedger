@@ -45,6 +45,15 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Generate google_credentials stub if missing
+        if: steps.changes.outputs.skip == 'false'
+        run: |
+          target=lib/core/constants/google_credentials.dart
+          if [ ! -f "$target" ]; then
+            cp "$target.example" "$target"
+            echo "Stubbed $target for CI build (Drive backup disabled in this APK)."
+          fi
+
       - name: Get dependencies
         if: steps.changes.outputs.skip == 'false'
         run: flutter pub get
