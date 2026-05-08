@@ -26,6 +26,17 @@ class TimeEntryDao extends DatabaseAccessor<AppDatabase>
         .watchSingleOrNull();
   }
 
+  Stream<List<TimeEntry>> watchAllRunningEntries() {
+    return (select(timeEntries)
+          ..where((t) => t.endTime.isNull())
+          ..orderBy([(t) => OrderingTerm(expression: t.startTime)]))
+        .watch();
+  }
+
+  Future<List<TimeEntry>> getAllRunningEntries() {
+    return (select(timeEntries)..where((t) => t.endTime.isNull())).get();
+  }
+
   /// Insert a time entry with overlap check (in a transaction).
   Future<int> insertWithOverlapCheck(TimeEntriesCompanion entry) {
     return transaction(() async {

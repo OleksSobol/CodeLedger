@@ -3,6 +3,7 @@ import 'package:drift/drift.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../core/database/daos/time_entry_dao.dart';
 import '../../../../core/providers/database_provider.dart';
+import '../../../../core/providers/multi_timer_provider.dart';
 import '../../../../core/utils/rate_resolver.dart';
 import '../../../../core/utils/tag_utils.dart';
 import '../../../profile/presentation/providers/profile_provider.dart';
@@ -16,6 +17,11 @@ final timeEntryDaoProvider = Provider<TimeEntryDao>((ref) {
 /// Watches the currently running timer entry (null if none).
 final runningEntryProvider = StreamProvider<TimeEntry?>((ref) {
   return ref.watch(timeEntryDaoProvider).watchRunningEntry();
+});
+
+/// Watches ALL currently running timer entries (empty list if none).
+final runningEntriesProvider = StreamProvider<List<TimeEntry>>((ref) {
+  return ref.watch(timeEntryDaoProvider).watchAllRunningEntries();
 });
 
 /// Most recent completed entry (for quick clock-in repeat).
@@ -113,6 +119,19 @@ class TimerNotifier extends AsyncNotifier<void> {
     String? repository,
     String? tags,
   }) async {
+    final multiTimer = await ref.read(multiTimerProvider.future);
+    final running = await _dao.getAllRunningEntries();
+
+    if (!multiTimer && running.isNotEmpty) {
+      throw Exception(
+        'A timer is already running. Clock out first, or enable '
+        'multi-company clocking in Settings → Time Tracking.',
+      );
+    }
+    if (multiTimer && running.any((e) => e.clientId == clientId)) {
+      throw Exception('A timer for this company is already running.');
+    }
+
     // Resolve the hourly rate
     final profile = await ref.read(userProfileDaoProvider).getProfile();
     final clientDao = ref.read(clientDaoProvider);

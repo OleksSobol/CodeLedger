@@ -19,8 +19,6 @@ class ActiveTimerCard extends ConsumerStatefulWidget {
 class _ActiveTimerCardState extends ConsumerState<ActiveTimerCard>
     with SingleTickerProviderStateMixin {
   Timer? _ticker;
-  final _elapsed = ValueNotifier<Duration>(Duration.zero);
-  DateTime? _startTime;
 
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
@@ -37,46 +35,39 @@ class _ActiveTimerCardState extends ConsumerState<ActiveTimerCard>
     );
   }
 
-  void _startTicker(DateTime startTime) {
-    if (_startTime == startTime) return;
-    _startTime = startTime;
-    _elapsed.value = DateTime.now().difference(startTime);
-    _ticker?.cancel();
-    _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
-      _elapsed.value = DateTime.now().difference(startTime);
+  void _startTicker() {
+    _ticker ??= Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
     });
   }
 
   void _stopTicker() {
     _ticker?.cancel();
     _ticker = null;
-    _startTime = null;
-    _elapsed.value = Duration.zero;
   }
 
   @override
   void dispose() {
     _ticker?.cancel();
-    _elapsed.dispose();
     _pulseController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final runningAsync = ref.watch(runningEntryProvider);
+    final runningAsync = ref.watch(runningEntriesProvider);
     final theme = Theme.of(context);
 
     return runningAsync.when(
       loading: () => const SizedBox.shrink(),
       error: (_, _) => const SizedBox.shrink(),
-      data: (running) {
-        if (running == null) {
+      data: (entries) {
+        if (entries.isEmpty) {
           _stopTicker();
           return _buildIdleCard(context, theme);
         }
-        _startTicker(running.startTime);
-        return _buildRunningCard(context, theme, running);
+        _startTicker();
+        return _buildRunningCard(context, theme, entries);
       },
     );
   }
@@ -117,8 +108,7 @@ class _ActiveTimerCardState extends ConsumerState<ActiveTimerCard>
                         )
                       : OutlinedButton.icon(
                           onPressed: null,
-                          icon:
-                              const Icon(Icons.replay, size: 20),
+                          icon: const Icon(Icons.replay, size: 20),
                           label: const Text('Quick Repeat'),
                         ),
                 ),
@@ -131,11 +121,7 @@ class _ActiveTimerCardState extends ConsumerState<ActiveTimerCard>
   }
 
   Widget _buildRunningCard(
-      BuildContext context, ThemeData theme, TimeEntry running) {
-    final clientAsync = ref.watch(clientByIdProvider(running.clientId));
-    final clientName = clientAsync.value?.name;
-    final hasInfo = clientName != null || running.description != null;
-
+      BuildContext context, ThemeData theme, List<TimeEntry> entries) {
     return Card(
       color: theme.colorScheme.primaryContainer,
       child: Padding(
@@ -143,70 +129,14 @@ class _ActiveTimerCardState extends ConsumerState<ActiveTimerCard>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Header row: pulsing dot + client / description
-            Row(
-              children: [
-                AnimatedBuilder(
-                  animation: _pulseAnimation,
-                  builder: (_, _) => Container(
-                    width: 10,
-                    height: 10,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: theme.colorScheme.error
-                          .withValues(alpha: _pulseAnimation.value),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                if (hasInfo)
-                  Expanded(
-                    child: Text(
-                      clientName ?? running.description ?? '',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onPrimaryContainer,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: Spacing.sm),
-
-            // Full-width elapsed timer — isolated ticker
-            ValueListenableBuilder<Duration>(
-              valueListenable: _elapsed,
-              builder: (_, elapsed, _) {
-                final h = elapsed.inHours;
-                final m = elapsed.inMinutes.remainder(60);
-                final s = elapsed.inSeconds.remainder(60);
-                final display = h > 0
-                    ? '${h}h ${m.toString().padLeft(2, '0')}m ${s.toString().padLeft(2, '0')}s'
-                    : '${m}m ${s.toString().padLeft(2, '0')}s';
-                return Text(
-                  display,
-                  style: theme.textTheme.displaySmall?.copyWith(
-                    color: theme.colorScheme.onPrimaryContainer,
-                    fontWeight: FontWeight.bold,
-                    fontFeatures: [const FontFeature.tabularFigures()],
-                  ),
-                  textAlign: TextAlign.center,
-                );
-              },
-            ),
-
-            const SizedBox(height: Spacing.md),
-
-            // Clock Out button — full width
-            FilledButton(
-              onPressed: () => _clockOut(context, running.id),
-              style: FilledButton.styleFrom(
-                backgroundColor: theme.colorScheme.error,
-                foregroundColor: theme.colorScheme.onError,
+            for (int i = 0; i < entries.length; i++) ...[
+              if (i > 0) const Divider(height: 20),
+              _TimerRow(
+                entry: entries[i],
+                pulseAnimation: _pulseAnimation,
+                onClockOut: () => _clockOut(context, entries[i].id),
               ),
-              child: const Text('Clock Out'),
-            ),
+            ],
           ],
         ),
       ),
@@ -258,9 +188,7 @@ class _ActiveTimerCardState extends ConsumerState<ActiveTimerCard>
       }
     } catch (e) {
       if (mounted) {
-        messenger.showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        messenger.showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     }
   }
@@ -281,6 +209,100 @@ class _ActiveTimerCardState extends ConsumerState<ActiveTimerCard>
         );
       }
     }
+  }
+}
+
+/// One running timer row inside the active-timer card.
+class _TimerRow extends ConsumerWidget {
+  final TimeEntry entry;
+  final Animation<double> pulseAnimation;
+  final VoidCallback onClockOut;
+
+  const _TimerRow({
+    required this.entry,
+    required this.pulseAnimation,
+    required this.onClockOut,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final clientAsync = ref.watch(clientByIdProvider(entry.clientId));
+    final clientName = clientAsync.value?.name;
+    final elapsed = DateTime.now().difference(entry.startTime);
+
+    final h = elapsed.inHours;
+    final m = elapsed.inMinutes.remainder(60);
+    final s = elapsed.inSeconds.remainder(60);
+    final display = h > 0
+        ? '${h}h ${m.toString().padLeft(2, '0')}m ${s.toString().padLeft(2, '0')}s'
+        : '${m}m ${s.toString().padLeft(2, '0')}s';
+
+    final earnings = elapsed.inSeconds / 3600 * entry.hourlyRateSnapshot;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Header: pulsing dot + client name
+        Row(
+          children: [
+            AnimatedBuilder(
+              animation: pulseAnimation,
+              builder: (_, _) => Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: theme.colorScheme.error
+                      .withValues(alpha: pulseAnimation.value),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                clientName ?? entry.description ?? 'Timer',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onPrimaryContainer,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            Text(
+              '\$${earnings.toStringAsFixed(2)}',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onPrimaryContainer
+                    .withValues(alpha: 0.7),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: Spacing.sm),
+
+        // Elapsed time
+        Text(
+          display,
+          style: theme.textTheme.displaySmall?.copyWith(
+            color: theme.colorScheme.onPrimaryContainer,
+            fontWeight: FontWeight.bold,
+            fontFeatures: [const FontFeature.tabularFigures()],
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: Spacing.md),
+
+        // Clock Out button
+        FilledButton(
+          onPressed: onClockOut,
+          style: FilledButton.styleFrom(
+            backgroundColor: theme.colorScheme.error,
+            foregroundColor: theme.colorScheme.onError,
+          ),
+          child: const Text('Clock Out'),
+        ),
+      ],
+    );
   }
 }
 

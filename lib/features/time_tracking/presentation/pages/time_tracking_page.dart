@@ -22,7 +22,8 @@ class TimeTrackingPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final runningAsync = ref.watch(runningEntryProvider);
+    final runningEntries =
+        ref.watch(runningEntriesProvider).value ?? [];
     final filter = ref.watch(dateRangeFilterProvider);
 
     final entriesAsync = ref.watch(filteredEntriesProvider);
@@ -88,19 +89,22 @@ class TimeTrackingPage extends ConsumerWidget {
         onRefresh: () async {
           ref.invalidate(filteredEntriesProvider);
           ref.invalidate(runningEntryProvider);
+          ref.invalidate(runningEntriesProvider);
           await Future.delayed(const Duration(milliseconds: 300));
         },
         child: CustomScrollView(
           slivers: [
-            // Active Timer (if running)
-            if (runningAsync.value != null)
+            // Active Timers (one per running entry)
+            for (final entry in runningEntries)
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.all(Spacing.md),
-                  child:
-                      ActiveTimerWidget(entry: runningAsync.value!),
+                  padding: const EdgeInsets.fromLTRB(
+                      Spacing.md, Spacing.md, Spacing.md, 0),
+                  child: ActiveTimerWidget(entry: entry),
                 ),
               ),
+            if (runningEntries.isNotEmpty)
+              const SliverToBoxAdapter(child: SizedBox(height: Spacing.md)),
 
             // Date Filter
             SliverToBoxAdapter(

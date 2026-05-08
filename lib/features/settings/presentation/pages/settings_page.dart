@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/providers/app_version_provider.dart';
 import '../../../../core/providers/landing_route_provider.dart';
+import '../../../../core/providers/multi_timer_provider.dart';
 import '../../../../core/providers/theme_provider.dart';
 
 class SettingsPage extends ConsumerWidget {
@@ -76,6 +77,11 @@ class SettingsPage extends ConsumerWidget {
             subtitle: 'Encrypted local & Drive backups',
             onTap: () => context.push('/backup'),
           ),
+          const Divider(height: 1),
+
+          // --- Time Tracking section ---
+          _SectionHeader(title: 'Time Tracking'),
+          _MultiTimerTile(),
           const Divider(height: 1),
 
           // --- Accounts section ---
@@ -191,6 +197,25 @@ class _LandingRouteTile extends ConsumerWidget {
           ref.read(landingRouteProvider.notifier).setRoute(route);
         },
       ),
+    );
+  }
+}
+
+class _MultiTimerTile extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final enabled = ref.watch(multiTimerProvider).value ?? false;
+    return SwitchListTile(
+      secondary: Icon(Icons.timer_outlined, color: theme.colorScheme.primary),
+      title: const Text('Multi-company clocking'),
+      subtitle: Text(
+        'Run simultaneous timers for different clients at the same time',
+        style: theme.textTheme.bodySmall
+            ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+      ),
+      value: enabled,
+      onChanged: (v) => ref.read(multiTimerProvider.notifier).setEnabled(v),
     );
   }
 }
