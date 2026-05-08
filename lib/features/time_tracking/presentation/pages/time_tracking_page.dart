@@ -10,6 +10,7 @@ import '../widgets/active_timer_widget.dart';
 import '../widgets/time_entries_list.dart';
 import '../widgets/date_range_selector.dart';
 import '../widgets/time_summary_bar.dart';
+import '../widgets/clock_in_sheet.dart';
 import '../widgets/manual_entry_sheet.dart';
 import '../widgets/tag_filter_bar.dart';
 import '../../../clients/presentation/providers/client_providers.dart';
@@ -84,6 +85,10 @@ class TimeTrackingPage extends ConsumerWidget {
             ],
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => ClockInSheet.show(context),
+        child: const Icon(Icons.play_arrow),
       ),
       body: RefreshIndicator(
         onRefresh: () async {

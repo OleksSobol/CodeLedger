@@ -6,7 +6,9 @@ import 'package:intl/intl.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../core/database/daos/time_entry_dao.dart';
 import '../../../../shared/widgets/spacing.dart';
+import '../../../../core/providers/multi_timer_provider.dart';
 import '../../../time_tracking/presentation/providers/time_entry_providers.dart';
+import '../../../time_tracking/presentation/widgets/clock_in_sheet.dart';
 import '../../../clients/presentation/providers/client_providers.dart';
 
 class ActiveTimerCard extends ConsumerStatefulWidget {
@@ -122,6 +124,7 @@ class _ActiveTimerCardState extends ConsumerState<ActiveTimerCard>
 
   Widget _buildRunningCard(
       BuildContext context, ThemeData theme, List<TimeEntry> entries) {
+    final multiTimer = ref.watch(multiTimerProvider).value ?? false;
     return Card(
       color: theme.colorScheme.primaryContainer,
       child: Padding(
@@ -135,6 +138,21 @@ class _ActiveTimerCardState extends ConsumerState<ActiveTimerCard>
                 entry: entries[i],
                 pulseAnimation: _pulseAnimation,
                 onClockOut: () => _clockOut(context, entries[i].id),
+              ),
+            ],
+            if (multiTimer) ...[
+              const Divider(height: 20),
+              OutlinedButton.icon(
+                onPressed: () => ClockInSheet.show(context),
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Clock In Another Client'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: theme.colorScheme.onPrimaryContainer,
+                  side: BorderSide(
+                    color: theme.colorScheme.onPrimaryContainer
+                        .withValues(alpha: 0.5),
+                  ),
+                ),
               ),
             ],
           ],
