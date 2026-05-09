@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/database/app_database.dart';
+import '../../../../core/utils/tag_utils.dart';
 import '../../../clients/presentation/providers/client_providers.dart';
 import '../../../projects/presentation/providers/project_providers.dart';
 import '../providers/time_entry_providers.dart';
@@ -17,6 +18,7 @@ class _ClockInPageState extends ConsumerState<ClockInPage> {
   final _descriptionCtrl = TextEditingController();
   final _issueRefCtrl = TextEditingController();
   final _repoCtrl = TextEditingController();
+  final _tagsCtrl = TextEditingController();
   Client? _selectedClient;
   Project? _selectedProject;
   bool _saving = false;
@@ -26,6 +28,7 @@ class _ClockInPageState extends ConsumerState<ClockInPage> {
     _descriptionCtrl.dispose();
     _issueRefCtrl.dispose();
     _repoCtrl.dispose();
+    _tagsCtrl.dispose();
     super.dispose();
   }
 
@@ -49,7 +52,9 @@ class _ClockInPageState extends ConsumerState<ClockInPage> {
             description: _trimOrNull(_descriptionCtrl.text),
             issueReference: _trimOrNull(_issueRefCtrl.text),
             repository: _trimOrNull(_repoCtrl.text),
+            tags: serializeTags(_tagsCtrl.text),
           );
+      ref.invalidate(allTagsProvider);
       if (mounted) context.pop();
     } catch (e) {
       if (mounted) {
@@ -167,6 +172,14 @@ class _ClockInPageState extends ConsumerState<ClockInPage> {
             decoration: const InputDecoration(
               labelText: 'Issue Reference (optional)',
               hintText: 'e.g. org/repo#42',
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: _tagsCtrl,
+            decoration: const InputDecoration(
+              labelText: 'Tags (optional)',
+              hintText: 'e.g. bugfix, frontend',
             ),
           ),
           const SizedBox(height: 24),
