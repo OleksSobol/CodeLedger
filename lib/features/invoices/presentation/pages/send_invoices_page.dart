@@ -199,6 +199,17 @@ class _DraftCardState extends ConsumerState<_DraftCard> {
         body: 'Please find attached invoice ${invoice.invoiceNumber}.',
         recipients: recipients,
       );
+
+      await ref
+          .read(invoiceNotifierProvider.notifier)
+          .updateStatus(invoice.id, 'sent');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text('${invoice.invoiceNumber} marked as sent.')),
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
