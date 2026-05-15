@@ -8,6 +8,7 @@ import '../../../../core/database/app_database.dart';
 import '../../../../core/utils/currency_formatter.dart';
 import '../../../clients/presentation/providers/client_providers.dart';
 import '../../../email/presentation/providers/email_providers.dart';
+import '../../../pdf_generation/presentation/pages/pdf_preview_page.dart';
 import '../../../pdf_generation/presentation/providers/pdf_providers.dart';
 import '../../../profile/presentation/providers/profile_provider.dart';
 import '../providers/invoice_providers.dart';
@@ -133,14 +134,22 @@ class _DraftCardState extends ConsumerState<_DraftCard> {
                     label: const Text('Add Time'),
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 8),
                 Expanded(
                   child: OutlinedButton.icon(
                     onPressed: _sending
                         ? null
-                        : () => context.push('/invoices/${widget.invoice.id}'),
-                    icon: const Icon(Icons.visibility_outlined),
-                    label: const Text('Open'),
+                        : () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => PdfPreviewPage(
+                                  invoiceId: widget.invoice.id,
+                                  invoiceNumber:
+                                      widget.invoice.invoiceNumber,
+                                ),
+                              ),
+                            ),
+                    icon: const Icon(Icons.picture_as_pdf_outlined),
+                    label: const Text('Preview'),
                   ),
                 ),
               ],
