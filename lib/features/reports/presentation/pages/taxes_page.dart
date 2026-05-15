@@ -24,6 +24,7 @@ class _Receipt {
   final String description;
   final String category;
   final double amount;
+  final bool isTaxDeductible;
 
   const _Receipt({
     required this.id,
@@ -31,6 +32,7 @@ class _Receipt {
     required this.description,
     required this.category,
     required this.amount,
+    this.isTaxDeductible = true,
   });
 
   Map<String, dynamic> toJson() => {
@@ -39,6 +41,7 @@ class _Receipt {
         'desc': description,
         'cat': category,
         'amount': amount,
+        'taxded': isTaxDeductible,
       };
 
   factory _Receipt.fromJson(Map<String, dynamic> j) => _Receipt(
@@ -47,6 +50,7 @@ class _Receipt {
         description: j['desc'] as String,
         category: j['cat'] as String,
         amount: (j['amount'] as num).toDouble(),
+        isTaxDeductible: j['taxded'] as bool? ?? true,
       );
 }
 
@@ -535,7 +539,7 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                     IconButton(
                       icon: const Icon(Icons.add),
                       tooltip: 'Add expense',
-                      onPressed: () => _showAddReceiptDialog(),
+                      onPressed: _showAddExpense,
                     ),
                   ],
                 ),
@@ -559,6 +563,13 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                     cur.format(
                         _receipts.fold(0.0, (sum, r) => sum + r.amount)),
                     theme,
+                  ),
+                  _SummaryRow(
+                    'Deductible total',
+                    cur.format(_receipts
+                        .where((r) => r.isTaxDeductible)
+                        .fold(0.0, (sum, r) => sum + r.amount)),
+                    theme,
                     bold: true,
                   ),
                 ],
@@ -579,113 +590,78 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
   Widget _buildReceiptTile(_Receipt r, ThemeData theme, NumberFormat cur) {
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      leading: const Icon(Icons.receipt_outlined),
+      leading: Icon(
+        Icons.receipt_outlined,
+        color: r.isTaxDeductible ? null : theme.colorScheme.onSurfaceVariant,
+      ),
       title: Text(r.description),
-      subtitle: Text('${r.category} - ${r.date}',
-          style: theme.textTheme.bodySmall),
+      subtitle: Text(
+        r.isTaxDeductible
+            ? '${r.category} · ${r.date}'
+            : '${r.category} · ${r.date} · Non-deductible',
+        style: theme.textTheme.bodySmall,
+      ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(cur.format(r.amount),
-              style: theme.textTheme.bodyMedium
-                  ?.copyWith(fontWeight: FontWeight.w600)),
-          IconButton(
-            icon: const Icon(Icons.delete_outline, size: 18),
-            onPressed: () async {
-              setState(
-                  () => _receipts.removeWhere((x) => x.id == r.id));
-              await _saveReceipts();
+          Text(
+            cur.format(r.amount),
+            style: theme.textTheme.bodyMedium
+                ?.copyWith(fontWeight: FontWeight.w600),
+          ),
+          PopupMenuButton<String>(
+            tooltip: 'Options',
+            onSelected: (value) async {
+              if (value == 'edit') {
+                if (!mounted) return;
+                final updated = await _showExpenseSheet(existing: r);
+                if (updated == null || !mounted) return;
+                setState(() {
+                  final idx = _receipts.indexWhere((x) => x.id == r.id);
+                  if (idx != -1) _receipts[idx] = updated;
+                });
+                await _saveReceipts();
+              } else if (value == 'delete') {
+                setState(() => _receipts.removeWhere((x) => x.id == r.id));
+                await _saveReceipts();
+              }
             },
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: 'edit',
+                child: ListTile(
+                  leading: Icon(Icons.edit_outlined),
+                  title: Text('Edit'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              PopupMenuItem(
+                value: 'delete',
+                child: ListTile(
+                  leading: Icon(Icons.delete_outline),
+                  title: Text('Delete'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Future<void> _showAddReceiptDialog() async {
-    String description = '';
-    String category = _receiptCategories.first;
-    String amount = '';
-    final dateCtrl = TextEditingController(
-        text: DateFormat('yyyy-MM-dd').format(DateTime.now()));
+  Future<void> _showAddExpense() async {
+    final result = await _showExpenseSheet();
+    if (result == null || !mounted) return;
+    setState(() => _receipts.insert(0, result));
+    await _saveReceipts();
+  }
 
-    await showDialog<void>(
+  Future<_Receipt?> _showExpenseSheet({_Receipt? existing}) {
+    return showModalBottomSheet<_Receipt>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Add Expense'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: dateCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Date (YYYY-MM-DD)',
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.datetime,
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                decoration: const InputDecoration(
-                  labelText: 'Description',
-                  border: OutlineInputBorder(),
-                ),
-                onChanged: (v) => description = v,
-              ),
-              const SizedBox(height: 12),
-              StatefulBuilder(
-                builder: (ctx, setSt) => DropdownButtonFormField<String>(
-                  value: category,
-                  decoration: const InputDecoration(
-                    labelText: 'Category',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: _receiptCategories
-                      .map((c) =>
-                          DropdownMenuItem(value: c, child: Text(c)))
-                      .toList(),
-                  onChanged: (v) => setSt(() => category = v!),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                decoration: const InputDecoration(
-                  labelText: 'Amount',
-                  border: OutlineInputBorder(),
-                  prefixText: '\$ ',
-                ),
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                onChanged: (v) => amount = v,
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final amt = double.tryParse(amount) ?? 0;
-              if (description.trim().isEmpty || amt <= 0) return;
-              final receipt = _Receipt(
-                id: DateTime.now().millisecondsSinceEpoch.toString(),
-                date: dateCtrl.text.trim(),
-                description: description.trim(),
-                category: category,
-                amount: amt,
-              );
-              setState(() => _receipts.insert(0, receipt));
-              _saveReceipts();
-              Navigator.pop(ctx);
-            },
-            child: const Text('Add'),
-          ),
-        ],
-      ),
+      isScrollControlled: true,
+      builder: (ctx) => _ExpenseSheet(existing: existing),
     );
   }
 
@@ -1017,6 +993,159 @@ class _PdfPreviewPage extends StatelessWidget {
       ShareParams(
         files: [XFile(file.path, mimeType: 'application/pdf')],
         subject: 'Tax Report',
+      ),
+    );
+  }
+}
+
+// ── Expense entry bottom sheet ─────────────────────────────────────────────────
+
+class _ExpenseSheet extends StatefulWidget {
+  final _Receipt? existing;
+  const _ExpenseSheet({super.key, this.existing});
+
+  @override
+  State<_ExpenseSheet> createState() => _ExpenseSheetState();
+}
+
+class _ExpenseSheetState extends State<_ExpenseSheet> {
+  late DateTime _date;
+  late final TextEditingController _descCtrl;
+  late final TextEditingController _amountCtrl;
+  late String _category;
+  late bool _isTaxDeductible;
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.existing;
+    _date = e != null
+        ? (DateTime.tryParse(e.date) ?? DateTime.now())
+        : DateTime.now();
+    _descCtrl = TextEditingController(text: e?.description ?? '');
+    _amountCtrl = TextEditingController(
+      text: e != null ? e.amount.toStringAsFixed(2) : '',
+    );
+    _category = e?.category ?? _receiptCategories.first;
+    _isTaxDeductible = e?.isTaxDeductible ?? true;
+  }
+
+  @override
+  void dispose() {
+    _descCtrl.dispose();
+    _amountCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _date,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+    );
+    if (picked != null) setState(() => _date = picked);
+  }
+
+  void _save() {
+    final description = _descCtrl.text.trim();
+    final amount = double.tryParse(_amountCtrl.text.trim()) ?? 0;
+    if (description.isEmpty || amount <= 0) return;
+    Navigator.pop(
+      context,
+      _Receipt(
+        id: widget.existing?.id ??
+            DateTime.now().millisecondsSinceEpoch.toString(),
+        date: DateFormat('yyyy-MM-dd').format(_date),
+        description: description,
+        category: _category,
+        amount: amount,
+        isTaxDeductible: _isTaxDeductible,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isEditing = widget.existing != null;
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        24,
+        24,
+        24,
+        24 + MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            isEditing ? 'Edit Expense' : 'Add Expense',
+            style: theme.textTheme.titleMedium
+                ?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 16),
+          InkWell(
+            onTap: _pickDate,
+            child: InputDecorator(
+              decoration: const InputDecoration(
+                labelText: 'Date',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.calendar_today_outlined),
+              ),
+              child: Text(DateFormat('MMM d, yyyy').format(_date)),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _descCtrl,
+            decoration: const InputDecoration(
+              labelText: 'Description',
+              border: OutlineInputBorder(),
+            ),
+            textCapitalization: TextCapitalization.sentences,
+            autofocus: widget.existing == null,
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            value: _category,
+            decoration: const InputDecoration(
+              labelText: 'Category',
+              border: OutlineInputBorder(),
+            ),
+            items: _receiptCategories
+                .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                .toList(),
+            onChanged: (v) => setState(() => _category = v!),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _amountCtrl,
+            decoration: const InputDecoration(
+              labelText: 'Amount',
+              border: OutlineInputBorder(),
+              prefixText: '\$ ',
+            ),
+            keyboardType:
+                const TextInputType.numberWithOptions(decimal: true),
+          ),
+          const SizedBox(height: 4),
+          SwitchListTile(
+            value: _isTaxDeductible,
+            onChanged: (v) => setState(() => _isTaxDeductible = v),
+            title: const Text('Tax deductible'),
+            subtitle: const Text('Count toward Schedule C deductions'),
+            contentPadding: EdgeInsets.zero,
+          ),
+          const SizedBox(height: 12),
+          FilledButton(
+            onPressed: _save,
+            child: Text(isEditing ? 'Save Changes' : 'Add Expense'),
+          ),
+          const SizedBox(height: 8),
+        ],
       ),
     );
   }
