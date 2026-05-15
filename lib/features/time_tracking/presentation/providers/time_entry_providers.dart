@@ -82,19 +82,38 @@ final allTagsProvider = FutureProvider<Set<String>>((ref) {
   return ref.watch(timeEntryDaoProvider).getAllTags();
 });
 
-/// Watch entries for the selected date range, filtered by selected tags.
+class ClientIdFilterNotifier extends Notifier<Set<int>> {
+  @override
+  Set<int> build() => {};
+  void set(Set<int> v) => state = v;
+}
+
+/// Active company filter — entries must belong to one of the selected client IDs.
+final clientIdFilterProvider =
+    NotifierProvider<ClientIdFilterNotifier, Set<int>>(
+        ClientIdFilterNotifier.new);
+
+/// Watch entries for the selected date range, filtered by selected tags and companies.
 final filteredEntriesProvider = StreamProvider<List<TimeEntry>>((ref) {
   final filter = ref.watch(dateRangeFilterProvider);
   final tagFilter = ref.watch(tagFilterProvider);
+  final clientFilter = ref.watch(clientIdFilterProvider);
   return ref
       .watch(timeEntryDaoProvider)
       .watchEntriesForDateRange(filter.start, filter.end)
       .map((entries) {
-    if (tagFilter.isEmpty) return entries;
-    return entries.where((e) {
-      final entryTags = parseTags(e.tags);
-      return tagFilter.every((t) => entryTags.contains(t));
-    }).toList();
+    var result = entries;
+    if (tagFilter.isNotEmpty) {
+      result = result.where((e) {
+        final entryTags = parseTags(e.tags);
+        return tagFilter.every((t) => entryTags.contains(t));
+      }).toList();
+    }
+    if (clientFilter.isNotEmpty) {
+      result =
+          result.where((e) => clientFilter.contains(e.clientId)).toList();
+    }
+    return result;
   });
 });
 
