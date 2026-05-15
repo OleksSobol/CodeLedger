@@ -77,11 +77,12 @@ class _PdfPreviewPageState extends ConsumerState<PdfPreviewPage> {
                 selectedId: _selectedTemplateId,
                 onChanged: (id) async {
                   setState(() => _selectedTemplateId = id);
+                  final messenger = ScaffoldMessenger.of(context);
                   await ref
                       .read(invoiceNotifierProvider.notifier)
                       .setInvoiceTemplate(widget.invoiceId, id);
                   if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
+                    messenger.showSnackBar(
                       const SnackBar(
                         content: Text('Template saved for this invoice'),
                         duration: Duration(seconds: 2),

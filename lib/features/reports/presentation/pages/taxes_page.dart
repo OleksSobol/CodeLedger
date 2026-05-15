@@ -364,7 +364,7 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
         continue;
       }
       totalNet += inv.subtotal;
-      totalTax += inv.taxAmount ?? 0;
+      totalTax += inv.taxAmount;
       totalPaid += inv.total;
     }
 
@@ -422,7 +422,7 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                     ),
                   ),
                   loading: () => const LinearProgressIndicator(),
-                  error: (_, __) => const Text('Error loading clients'),
+                  error: (e, _) => const Text('Error loading clients'),
                 ),
                 const SizedBox(height: 8),
                 CheckboxListTile(
@@ -1002,7 +1002,7 @@ class _PdfPreviewPage extends StatelessWidget {
 
 class _ExpenseSheet extends StatefulWidget {
   final _Receipt? existing;
-  const _ExpenseSheet({super.key, this.existing});
+  const _ExpenseSheet({this.existing});
 
   @override
   State<_ExpenseSheet> createState() => _ExpenseSheetState();
@@ -1110,7 +1110,7 @@ class _ExpenseSheetState extends State<_ExpenseSheet> {
           ),
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
-            value: _category,
+            initialValue: _category,
             decoration: const InputDecoration(
               labelText: 'Category',
               border: OutlineInputBorder(),
