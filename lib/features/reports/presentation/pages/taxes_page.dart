@@ -4,9 +4,13 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../core/providers/theme_provider.dart';
 import '../../../clients/presentation/providers/client_providers.dart';
@@ -25,6 +29,7 @@ class _Receipt {
   final String category;
   final double amount;
   final bool isTaxDeductible;
+  final String? imagePath;
 
   const _Receipt({
     required this.id,
@@ -33,6 +38,7 @@ class _Receipt {
     required this.category,
     required this.amount,
     this.isTaxDeductible = true,
+    this.imagePath,
   });
 
   Map<String, dynamic> toJson() => {
@@ -42,6 +48,7 @@ class _Receipt {
         'cat': category,
         'amount': amount,
         'taxded': isTaxDeductible,
+        if (imagePath != null) 'img': imagePath,
       };
 
   factory _Receipt.fromJson(Map<String, dynamic> j) => _Receipt(
@@ -51,6 +58,7 @@ class _Receipt {
         category: j['cat'] as String,
         amount: (j['amount'] as num).toDouble(),
         isTaxDeductible: j['taxded'] as bool? ?? true,
+        imagePath: j['img'] as String?,
       );
 }
 
@@ -97,10 +105,20 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
   final _federalRateCtrl = TextEditingController(text: '22.0');
   final _seRateCtrl = TextEditingController(text: '15.3');
 
+  // Guide tab estimator
+  final _guideIncomeCtrl = TextEditingController();
+  final _guideExpensesCtrl = TextEditingController(text: '0');
+
+  // Home office calculator
+  final _homeRentCtrl = TextEditingController();
+  int _homeOfficeTotalRooms = 4;
+  int _homeOfficeWorkRooms = 1;
+  bool _showHomeOffice = false;
+
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 2, vsync: this);
+    _tabs = TabController(length: 3, vsync: this);
     final now = DateTime.now();
     _dateRange = DateTimeRange(
       start: DateTime(now.year, 1, 1),
@@ -108,6 +126,7 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
     );
     _loadReceipts();
     _loadTaxRates();
+    _loadHomeOffice();
   }
 
   @override
@@ -115,6 +134,9 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
     _tabs.dispose();
     _federalRateCtrl.dispose();
     _seRateCtrl.dispose();
+    _guideIncomeCtrl.dispose();
+    _guideExpensesCtrl.dispose();
+    _homeRentCtrl.dispose();
     super.dispose();
   }
 
@@ -164,6 +186,28 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
     final dao = ref.read(appSettingsDaoProvider);
     await dao.setValue('tax.federal_rate', fed.toString());
     await dao.setValue('tax.se_rate', se.toString());
+  }
+
+  Future<void> _loadHomeOffice() async {
+    final dao = ref.read(appSettingsDaoProvider);
+    final rent = await dao.getValue('deduct.home_rent');
+    final total = await dao.getValue('deduct.home_total_rooms');
+    final work = await dao.getValue('deduct.home_work_rooms');
+    if (!mounted) return;
+    setState(() {
+      if (rent != null) _homeRentCtrl.text = rent;
+      if (total != null) _homeOfficeTotalRooms = int.tryParse(total) ?? 4;
+      if (work != null) _homeOfficeWorkRooms = int.tryParse(work) ?? 1;
+    });
+  }
+
+  Future<void> _saveHomeOffice() async {
+    final dao = ref.read(appSettingsDaoProvider);
+    await dao.setValue('deduct.home_rent', _homeRentCtrl.text);
+    await dao.setValue(
+        'deduct.home_total_rooms', _homeOfficeTotalRooms.toString());
+    await dao.setValue(
+        'deduct.home_work_rooms', _homeOfficeWorkRooms.toString());
   }
 
   double _incomeForRange(List<Invoice> invoices, DateTime start, DateTime end) {
@@ -320,6 +364,7 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
           tabs: const [
             Tab(text: 'Federal'),
             Tab(text: 'State / Local'),
+            Tab(text: 'Guide'),
           ],
         ),
       ),
@@ -328,6 +373,7 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
         children: [
           _buildFederalTab(),
           _buildStateTab(),
+          _buildGuideTab(),
         ],
       ),
     );
@@ -511,6 +557,141 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
           ),
         ),
 
+        // ── Home Office Calculator ─────────────────────────────────────────
+        const SizedBox(height: 12),
+        Card(
+          child: Column(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.home_work_outlined),
+                title: const Text('Home Office Deduction'),
+                subtitle: Builder(builder: (ctx) {
+                  final rent =
+                      double.tryParse(_homeRentCtrl.text) ?? 0;
+                  final monthly = _homeOfficeTotalRooms > 0
+                      ? rent *
+                          _homeOfficeWorkRooms /
+                          _homeOfficeTotalRooms
+                      : 0.0;
+                  return Text(
+                    monthly > 0
+                        ? '${cur.format(monthly)}/mo · ${cur.format(monthly * 12)}/yr'
+                        : 'Enter rent to calculate',
+                    style: theme.textTheme.bodySmall,
+                  );
+                }),
+                trailing: Icon(_showHomeOffice
+                    ? Icons.expand_less
+                    : Icons.expand_more),
+                onTap: () =>
+                    setState(() => _showHomeOffice = !_showHomeOffice),
+              ),
+              if (_showHomeOffice)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      TextFormField(
+                        controller: _homeRentCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Monthly rent / mortgage',
+                          prefixText: '\$',
+                          border: OutlineInputBorder(),
+                        ),
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
+                        onChanged: (_) {
+                          setState(() {});
+                          _saveHomeOffice();
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      Row(children: [
+                        Expanded(
+                          child: _RoomStepper(
+                            label: 'Total rooms',
+                            value: _homeOfficeTotalRooms,
+                            min: 1,
+                            max: 20,
+                            onChanged: (v) {
+                              setState(() => _homeOfficeTotalRooms = v);
+                              _saveHomeOffice();
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _RoomStepper(
+                            label: 'Office rooms',
+                            value: _homeOfficeWorkRooms,
+                            min: 1,
+                            max: _homeOfficeTotalRooms,
+                            onChanged: (v) {
+                              setState(() => _homeOfficeWorkRooms = v);
+                              _saveHomeOffice();
+                            },
+                          ),
+                        ),
+                      ]),
+                      const SizedBox(height: 12),
+                      Builder(builder: (ctx) {
+                        final rent =
+                            double.tryParse(_homeRentCtrl.text) ?? 0;
+                        final frac = _homeOfficeTotalRooms > 0
+                            ? _homeOfficeWorkRooms /
+                                _homeOfficeTotalRooms
+                            : 0.0;
+                        final monthly = rent * frac;
+                        final annual = monthly * 12;
+                        return Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.surfaceContainerLow,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _SummaryRow(
+                                  'Office fraction',
+                                  '${(frac * 100).toStringAsFixed(0)}%'
+                                  ' ($_homeOfficeWorkRooms/$_homeOfficeTotalRooms)',
+                                  theme),
+                              _SummaryRow('Monthly deduction',
+                                  cur.format(monthly), theme),
+                              _SummaryRow('Annual deduction',
+                                  cur.format(annual), theme,
+                                  bold: true),
+                              if (annual > 0) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Est. tax savings: '
+                                  '${cur.format(annual * (_federalRate + _seRate * 0.9235 * 0.5))}',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                      color: const Color(0xFF2E7D32),
+                                      fontWeight: FontWeight.w600),
+                                ),
+                              ],
+                            ],
+                          ),
+                        );
+                      }),
+                      const SizedBox(height: 8),
+                      Text(
+                        'IRS rule: room must be used regularly and '
+                        'exclusively for business. Add monthly amount '
+                        'as "Home Office" expense below to track it.',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+
         // ── Deductible expenses ────────────────────────────────────────────
         const SizedBox(height: 12),
         Card(
@@ -529,17 +710,17 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                               style: theme.textTheme.titleSmall),
                           const SizedBox(height: 2),
                           Text(
-                            'Track business expenses for Schedule C / deductions.',
+                            'Business expenses for Schedule C.',
                             style: theme.textTheme.bodySmall?.copyWith(
                                 color: theme.colorScheme.onSurfaceVariant),
                           ),
                         ],
                       ),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.add),
-                      tooltip: 'Add expense',
+                    FilledButton.tonalIcon(
                       onPressed: _showAddExpense,
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text('Add'),
                     ),
                   ],
                 ),
@@ -548,7 +729,7 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     child: Center(
                       child: Text(
-                        'No expenses recorded yet.',
+                        'No expenses yet. Tap Add to record one.',
                         style: theme.textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant),
                       ),
@@ -558,20 +739,38 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                   const SizedBox(height: 8),
                   ..._receipts.map((r) => _buildReceiptTile(r, theme, cur)),
                   const Divider(height: 16),
-                  _SummaryRow(
-                    'Total expenses',
-                    cur.format(
-                        _receipts.fold(0.0, (sum, r) => sum + r.amount)),
-                    theme,
-                  ),
-                  _SummaryRow(
-                    'Deductible total',
-                    cur.format(_receipts
+                  () {
+                    final totalAll = _receipts.fold(
+                        0.0, (sum, r) => sum + r.amount);
+                    final totalDed = _receipts
                         .where((r) => r.isTaxDeductible)
-                        .fold(0.0, (sum, r) => sum + r.amount)),
-                    theme,
-                    bold: true,
-                  ),
+                        .fold(0.0, (sum, r) => sum + r.amount);
+                    final savings = totalDed *
+                        (_federalRate + _seRate * 0.9235 * 0.5);
+                    return Column(
+                      children: [
+                        if (totalAll != totalDed)
+                          _SummaryRow('Total expenses',
+                              cur.format(totalAll), theme),
+                        _SummaryRow('Deductible total',
+                            cur.format(totalDed), theme,
+                            bold: true),
+                        const SizedBox(height: 2),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text('Est. tax savings',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                    color: const Color(0xFF2E7D32))),
+                            Text(cur.format(savings),
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                    color: const Color(0xFF2E7D32),
+                                    fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                      ],
+                    );
+                  }(),
                 ],
               ],
             ),
@@ -588,12 +787,32 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
   }
 
   Widget _buildReceiptTile(_Receipt r, ThemeData theme, NumberFormat cur) {
+    final hasPhoto =
+        r.imagePath != null && File(r.imagePath!).existsSync();
+
+    Widget leading = hasPhoto
+        ? GestureDetector(
+            onTap: () => _viewPhoto(r.imagePath!),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: Image.file(
+                File(r.imagePath!),
+                width: 44,
+                height: 44,
+                fit: BoxFit.cover,
+              ),
+            ),
+          )
+        : Icon(
+            Icons.receipt_outlined,
+            color: r.isTaxDeductible
+                ? null
+                : theme.colorScheme.onSurfaceVariant,
+          );
+
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      leading: Icon(
-        Icons.receipt_outlined,
-        color: r.isTaxDeductible ? null : theme.colorScheme.onSurfaceVariant,
-      ),
+      leading: leading,
       title: Text(r.description),
       subtitle: Text(
         r.isTaxDeductible
@@ -621,13 +840,20 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                   if (idx != -1) _receipts[idx] = updated;
                 });
                 await _saveReceipts();
+              } else if (value == 'view_photo') {
+                _viewPhoto(r.imagePath!);
               } else if (value == 'delete') {
+                if (r.imagePath != null) {
+                  try {
+                    await File(r.imagePath!).delete();
+                  } catch (_) {}
+                }
                 setState(() => _receipts.removeWhere((x) => x.id == r.id));
                 await _saveReceipts();
               }
             },
-            itemBuilder: (_) => const [
-              PopupMenuItem(
+            itemBuilder: (_) => [
+              const PopupMenuItem(
                 value: 'edit',
                 child: ListTile(
                   leading: Icon(Icons.edit_outlined),
@@ -635,7 +861,16 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                   contentPadding: EdgeInsets.zero,
                 ),
               ),
-              PopupMenuItem(
+              if (hasPhoto)
+                const PopupMenuItem(
+                  value: 'view_photo',
+                  child: ListTile(
+                    leading: Icon(Icons.photo_outlined),
+                    title: Text('View photo'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+              const PopupMenuItem(
                 value: 'delete',
                 child: ListTile(
                   leading: Icon(Icons.delete_outline),
@@ -646,6 +881,31 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  void _viewPhoto(String path) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        child: Stack(
+          children: [
+            InteractiveViewer(
+              child: Image.file(File(path)),
+            ),
+            Positioned(
+              top: 8,
+              right: 8,
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white),
+                style: IconButton.styleFrom(
+                    backgroundColor: Colors.black45),
+                onPressed: () => Navigator.pop(ctx),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -661,6 +921,7 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
     return showModalBottomSheet<_Receipt>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       builder: (ctx) => _ExpenseSheet(existing: existing),
     );
   }
@@ -872,6 +1133,437 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
     );
   }
 
+  // ── Guide tab ─────────────────────────────────────────────────────────────────
+
+  Widget _buildGuideTab() {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final cur = NumberFormat.currency(symbol: '\$');
+    final allInvoices = ref.watch(allInvoicesProvider).value ?? [];
+
+    // YTD income from paid/archived invoices
+    final now = DateTime.now();
+    final ytdStart = DateTime(now.year, 1, 1);
+    double ytdIncome = 0;
+    for (final inv in allInvoices) {
+      if (inv.status != 'paid' && inv.status != 'archived') continue;
+      final d = inv.paidDate ?? inv.issueDate;
+      if (d.isBefore(ytdStart) || d.isAfter(now)) continue;
+      ytdIncome += inv.subtotal;
+    }
+    final saveMin = ytdIncome * 0.25;
+    final saveMax = ytdIncome * 0.30;
+
+    // Estimator calc
+    final annualIncome =
+        double.tryParse(_guideIncomeCtrl.text.replaceAll(',', '')) ?? 0;
+    final annualExpenses =
+        double.tryParse(_guideExpensesCtrl.text.replaceAll(',', '')) ?? 0;
+    final taxableProfit =
+        (annualIncome - annualExpenses).clamp(0.0, double.infinity);
+    final seBase = taxableProfit * 0.9235;
+    final seTax = seBase * _seRate;
+    final fedBase =
+        (taxableProfit - seTax / 2).clamp(0.0, double.infinity);
+    final fedTax = fedBase * _federalRate;
+    final totalEst = seTax + fedTax;
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        // ── 25-30% Savings Banner ──────────────────────────────────────────
+        if (ytdIncome > 0) ...[
+          Card(
+            color: cs.primaryContainer,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    Icon(Icons.savings_outlined,
+                        color: cs.onPrimaryContainer),
+                    const SizedBox(width: 8),
+                    Text('Set Aside Now',
+                        style: theme.textTheme.titleSmall?.copyWith(
+                            color: cs.onPrimaryContainer,
+                            fontWeight: FontWeight.bold)),
+                  ]),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Based on your ${now.year} income so far '
+                    '(${cur.format(ytdIncome)}):',
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: cs.onPrimaryContainer),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(children: [
+                    Expanded(
+                      child: _GuideStat(
+                        label: '25% minimum',
+                        value: cur.format(saveMin),
+                        color: cs.onPrimaryContainer,
+                        theme: theme,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _GuideStat(
+                        label: '30% safe buffer',
+                        value: cur.format(saveMax),
+                        color: cs.onPrimaryContainer,
+                        theme: theme,
+                      ),
+                    ),
+                  ]),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Keep in a separate savings account. '
+                    'Do not touch until quarterly due dates.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                        color: cs.onPrimaryContainer.withAlpha(200)),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+
+        // ── Annual Tax Estimator ───────────────────────────────────────────
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  const Icon(Icons.calculate_outlined),
+                  const SizedBox(width: 8),
+                  Text('Annual Tax Estimator',
+                      style: theme.textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.bold)),
+                ]),
+                const SizedBox(height: 4),
+                Text(
+                  'Estimate your full-year tax bill. '
+                  'Uses your current rate settings.',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: cs.onSurfaceVariant),
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _guideIncomeCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Expected annual income',
+                    prefixText: '\$',
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  onChanged: (_) => setState(() {}),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _guideExpensesCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Business expenses (software, hardware…)',
+                    prefixText: '\$',
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  onChanged: (_) => setState(() {}),
+                ),
+                if (annualIncome > 0) ...[
+                  const SizedBox(height: 16),
+                  const Divider(),
+                  const SizedBox(height: 4),
+                  _SummaryRow(
+                      'Annual income', cur.format(annualIncome), theme),
+                  _SummaryRow('Business expenses',
+                      '− ${cur.format(annualExpenses)}', theme),
+                  _SummaryRow('Taxable profit',
+                      cur.format(taxableProfit), theme,
+                      bold: true),
+                  const Divider(height: 16),
+                  _SummaryRow(
+                      'SE tax (${(_seRate * 100).toStringAsFixed(1)}%)',
+                      cur.format(seTax),
+                      theme),
+                  _SummaryRow(
+                      'Federal income tax '
+                      '(${(_federalRate * 100).toStringAsFixed(1)}%)',
+                      cur.format(fedTax),
+                      theme),
+                  const SizedBox(height: 4),
+                  _SummaryRow('Total estimated tax',
+                      cur.format(totalEst), theme,
+                      bold: true),
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: cs.surfaceContainerLow,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(children: [
+                      Icon(Icons.info_outline,
+                          size: 16, color: cs.onSurfaceVariant),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Set aside ~${cur.format(totalEst / 4)} per quarter'
+                          ' (${annualIncome > 0 ? (totalEst / annualIncome * 100).toStringAsFixed(0) : 0}%'
+                          ' of income).',
+                          style: theme.textTheme.bodySmall
+                              ?.copyWith(color: cs.onSurfaceVariant),
+                        ),
+                      ),
+                    ]),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // ── Quarterly Due Dates ────────────────────────────────────────────
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  const Icon(Icons.calendar_today_outlined),
+                  const SizedBox(width: 8),
+                  Text('${now.year} Payment Schedule',
+                      style: theme.textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.bold)),
+                ]),
+                const SizedBox(height: 12),
+                _DueDateRow('Q1 — Jan 1 to Mar 31',
+                    DateTime(now.year, 4, 15), theme),
+                _DueDateRow('Q2 — Apr 1 to May 31',
+                    DateTime(now.year, 6, 15), theme),
+                _DueDateRow('Q3 — Jun 1 to Aug 31',
+                    DateTime(now.year, 9, 15), theme),
+                _DueDateRow('Q4 — Sep 1 to Dec 31',
+                    DateTime(now.year + 1, 1, 15), theme),
+                const SizedBox(height: 8),
+                Text(
+                  'Pay online via IRS Direct Pay — no account required, '
+                  'straight from your bank.',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: cs.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // ── IRS Links ──────────────────────────────────────────────────────
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  const Icon(Icons.link),
+                  const SizedBox(width: 8),
+                  Text('Official Resources',
+                      style: theme.textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.bold)),
+                ]),
+                const SizedBox(height: 8),
+                _LinkTile(
+                  icon: Icons.receipt_long_outlined,
+                  title: 'IRS Estimated Taxes Guide',
+                  subtitle: 'When and how to pay quarterly (Form 1040-ES)',
+                  url:
+                      'https://www.irs.gov/businesses/small-businesses-self-employed/estimated-taxes',
+                ),
+                _LinkTile(
+                  icon: Icons.payment_outlined,
+                  title: 'IRS Direct Pay',
+                  subtitle: 'Pay from your bank — free, no login needed',
+                  url: 'https://www.irs.gov/payments/direct-pay',
+                ),
+                _LinkTile(
+                  icon: Icons.description_outlined,
+                  title: 'Form 1040-ES',
+                  subtitle: 'Quarterly payment vouchers and worksheet',
+                  url:
+                      'https://www.irs.gov/forms-pubs/about-form-1040-es',
+                ),
+                _LinkTile(
+                  icon: Icons.store_outlined,
+                  title: 'WA Dept of Revenue',
+                  subtitle: 'B&O and sales tax filing (no WA income tax)',
+                  url: 'https://dor.wa.gov/',
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // ── WA State Note ──────────────────────────────────────────────────
+        Card(
+          color: cs.surfaceContainerLow,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  Icon(Icons.location_on_outlined, color: cs.primary),
+                  const SizedBox(width: 8),
+                  Text('Washington State Notes',
+                      style: theme.textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.bold)),
+                ]),
+                const SizedBox(height: 10),
+                _GuideCheckRow(
+                    icon: Icons.check_circle_outline,
+                    color: const Color(0xFF2E7D32),
+                    text: 'No state income tax — only federal',
+                    theme: theme),
+                _GuideCheckRow(
+                    icon: Icons.info_outline,
+                    color: cs.primary,
+                    text:
+                        'B&O tax applies to gross business receipts',
+                    theme: theme),
+                _GuideCheckRow(
+                    icon: Icons.info_outline,
+                    color: cs.primary,
+                    text:
+                        'Sales tax may apply to some digital services / SaaS',
+                    theme: theme),
+                _GuideCheckRow(
+                    icon: Icons.info_outline,
+                    color: cs.primary,
+                    text: 'File quarterly at MyDOR (dor.wa.gov)',
+                    theme: theme),
+                const SizedBox(height: 8),
+                Text(
+                  'Custom web development is typically B&O taxable. '
+                  'Hosting, SaaS, or digital products may also trigger '
+                  'sales tax — verify with a WA tax professional.',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: cs.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // ── Record Keeping ─────────────────────────────────────────────────
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  const Icon(Icons.folder_outlined),
+                  const SizedBox(width: 8),
+                  Text('Keep Records Now',
+                      style: theme.textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.bold)),
+                ]),
+                const SizedBox(height: 4),
+                Text(
+                  'Everything you need for Schedule C (self-employment).',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: cs.onSurfaceVariant),
+                ),
+                const SizedBox(height: 10),
+                _GuideCheckRow(
+                    icon: Icons.check_circle_outline,
+                    color: const Color(0xFF2E7D32),
+                    text: 'All invoices sent',
+                    theme: theme),
+                _GuideCheckRow(
+                    icon: Icons.check_circle_outline,
+                    color: const Color(0xFF2E7D32),
+                    text: 'Business expense receipts',
+                    theme: theme),
+                _GuideCheckRow(
+                    icon: Icons.check_circle_outline,
+                    color: const Color(0xFF2E7D32),
+                    text: 'Software / subscription invoices',
+                    theme: theme),
+                _GuideCheckRow(
+                    icon: Icons.check_circle_outline,
+                    color: const Color(0xFF2E7D32),
+                    text: 'Hardware and equipment purchases',
+                    theme: theme),
+                _GuideCheckRow(
+                    icon: Icons.check_circle_outline,
+                    color: const Color(0xFF2E7D32),
+                    text: 'Bank statements',
+                    theme: theme),
+                _GuideCheckRow(
+                    icon: Icons.check_circle_outline,
+                    color: const Color(0xFF2E7D32),
+                    text: 'Home office costs (if applicable)',
+                    theme: theme),
+                _GuideCheckRow(
+                    icon: Icons.check_circle_outline,
+                    color: const Color(0xFF2E7D32),
+                    text: 'Mileage log (if any business travel)',
+                    theme: theme),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        // ── First Year Note ────────────────────────────────────────────────
+        Card(
+          color: cs.secondaryContainer,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  Icon(Icons.lightbulb_outline,
+                      color: cs.onSecondaryContainer),
+                  const SizedBox(width: 8),
+                  Text('First Year Self-Employed',
+                      style: theme.textTheme.titleSmall?.copyWith(
+                          color: cs.onSecondaryContainer,
+                          fontWeight: FontWeight.bold)),
+                ]),
+                const SizedBox(height: 8),
+                Text(
+                  'The IRS is generally forgiving in your first year. '
+                  'The biggest mistake is ignoring taxes completely.\n\n'
+                  'You do not need to panic or immediately form an LLC. '
+                  'Sole proprietor + Schedule C is the normal starting '
+                  'point for freelance web developers. Consider a CPA '
+                  'review for your first annual return if your income is '
+                  'significant.',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: cs.onSecondaryContainer),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 32),
+      ],
+    );
+  }
+
   // ── State tab ────────────────────────────────────────────────────────────────
 
   Widget _buildStateTab() {
@@ -1014,6 +1706,8 @@ class _ExpenseSheetState extends State<_ExpenseSheet> {
   late final TextEditingController _amountCtrl;
   late String _category;
   late bool _isTaxDeductible;
+  String? _imagePath;
+  bool _pickingImage = false;
 
   @override
   void initState() {
@@ -1028,6 +1722,7 @@ class _ExpenseSheetState extends State<_ExpenseSheet> {
     );
     _category = e?.category ?? _receiptCategories.first;
     _isTaxDeductible = e?.isTaxDeductible ?? true;
+    _imagePath = e?.imagePath;
   }
 
   @override
@@ -1047,6 +1742,37 @@ class _ExpenseSheetState extends State<_ExpenseSheet> {
     if (picked != null) setState(() => _date = picked);
   }
 
+  Future<void> _pickImage(ImageSource source) async {
+    setState(() => _pickingImage = true);
+    try {
+      final picker = ImagePicker();
+      final file = await picker.pickImage(
+        source: source,
+        imageQuality: 80,
+        maxWidth: 1600,
+      );
+      if (file == null || !mounted) return;
+
+      // Copy to app documents so it persists
+      final dir = await getApplicationDocumentsDirectory();
+      final receiptsDir =
+          Directory(p.join(dir.path, 'receipt_photos'));
+      await receiptsDir.create(recursive: true);
+      final ext = p.extension(file.path).isNotEmpty
+          ? p.extension(file.path)
+          : '.jpg';
+      final dest = p.join(receiptsDir.path,
+          '${DateTime.now().millisecondsSinceEpoch}$ext');
+      await File(file.path).copy(dest);
+
+      setState(() => _imagePath = dest);
+    } finally {
+      if (mounted) setState(() => _pickingImage = false);
+    }
+  }
+
+  void _removeImage() => setState(() => _imagePath = null);
+
   void _save() {
     final description = _descCtrl.text.trim();
     final amount = double.tryParse(_amountCtrl.text.trim()) ?? 0;
@@ -1061,6 +1787,7 @@ class _ExpenseSheetState extends State<_ExpenseSheet> {
         category: _category,
         amount: amount,
         isTaxDeductible: _isTaxDeductible,
+        imagePath: _imagePath,
       ),
     );
   }
@@ -1069,8 +1796,9 @@ class _ExpenseSheetState extends State<_ExpenseSheet> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isEditing = widget.existing != null;
+    final hasImage = _imagePath != null && File(_imagePath!).existsSync();
 
-    return Padding(
+    return SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(
         24,
         24,
@@ -1131,6 +1859,49 @@ class _ExpenseSheetState extends State<_ExpenseSheet> {
             keyboardType:
                 const TextInputType.numberWithOptions(decimal: true),
           ),
+          const SizedBox(height: 12),
+
+          // ── Receipt photo ──────────────────────────────────────────────
+          if (hasImage) ...[
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.file(
+                File(_imagePath!),
+                height: 160,
+                width: double.infinity,
+                fit: BoxFit.cover,
+              ),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: _removeImage,
+              icon: const Icon(Icons.delete_outline, size: 18),
+              label: const Text('Remove photo'),
+            ),
+          ] else ...[
+            Row(children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _pickingImage
+                      ? null
+                      : () => _pickImage(ImageSource.camera),
+                  icon: const Icon(Icons.camera_alt_outlined, size: 18),
+                  label: const Text('Camera'),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _pickingImage
+                      ? null
+                      : () => _pickImage(ImageSource.gallery),
+                  icon: const Icon(Icons.photo_library_outlined, size: 18),
+                  label: const Text('Gallery'),
+                ),
+              ),
+            ]),
+          ],
+
           const SizedBox(height: 4),
           SwitchListTile(
             value: _isTaxDeductible,
@@ -1147,6 +1918,203 @@ class _ExpenseSheetState extends State<_ExpenseSheet> {
           const SizedBox(height: 8),
         ],
       ),
+    );
+  }
+}
+
+// ── Room stepper widget ────────────────────────────────────────────────────────
+
+class _RoomStepper extends StatelessWidget {
+  final String label;
+  final int value;
+  final int min;
+  final int max;
+  final ValueChanged<int> onChanged;
+
+  const _RoomStepper({
+    required this.label,
+    required this.value,
+    required this.min,
+    required this.max,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        border: Border.all(color: theme.colorScheme.outline),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.remove),
+                iconSize: 18,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                onPressed:
+                    value > min ? () => onChanged(value - 1) : null,
+              ),
+              Text('$value',
+                  style: theme.textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.bold)),
+              IconButton(
+                icon: const Icon(Icons.add),
+                iconSize: 18,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                onPressed:
+                    value < max ? () => onChanged(value + 1) : null,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Guide helper widgets ────────────────────────────────────────────────────────
+
+class _GuideStat extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+  final ThemeData theme;
+
+  const _GuideStat({
+    required this.label,
+    required this.value,
+    required this.color,
+    required this.theme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: color.withAlpha(30),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(value,
+              style: theme.textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.bold, color: color)),
+          Text(label,
+              style: theme.textTheme.bodySmall?.copyWith(color: color)),
+        ],
+      ),
+    );
+  }
+}
+
+class _DueDateRow extends StatelessWidget {
+  final String label;
+  final DateTime due;
+  final ThemeData theme;
+
+  const _DueDateRow(this.label, this.due, this.theme);
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final isPast = due.isBefore(now);
+    final isNear =
+        !isPast && due.isBefore(now.add(const Duration(days: 21)));
+    final color = isPast
+        ? theme.colorScheme.onSurfaceVariant
+        : isNear
+            ? const Color(0xFFE65100)
+            : const Color(0xFF2E7D32);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(children: [
+        Icon(
+          isPast ? Icons.check_circle_outline : Icons.radio_button_unchecked,
+          size: 18,
+          color: color,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(label,
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: isPast ? theme.colorScheme.onSurfaceVariant : null)),
+        ),
+        Text(
+          'Due ${DateFormat.MMMd().format(due)}',
+          style: theme.textTheme.bodySmall
+              ?.copyWith(color: color, fontWeight: FontWeight.w600),
+        ),
+      ]),
+    );
+  }
+}
+
+class _LinkTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final String url;
+
+  const _LinkTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.url,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(icon, color: cs.primary),
+      title: Text(title,
+          style: TextStyle(color: cs.primary, fontWeight: FontWeight.w500)),
+      subtitle: Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
+      trailing: Icon(Icons.open_in_new, size: 16, color: cs.primary),
+      onTap: () => launchUrl(Uri.parse(url),
+          mode: LaunchMode.externalApplication),
+    );
+  }
+}
+
+class _GuideCheckRow extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String text;
+  final ThemeData theme;
+
+  const _GuideCheckRow({
+    required this.icon,
+    required this.color,
+    required this.text,
+    required this.theme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(children: [
+        Icon(icon, size: 16, color: color),
+        const SizedBox(width: 8),
+        Expanded(child: Text(text, style: theme.textTheme.bodySmall)),
+      ]),
     );
   }
 }
