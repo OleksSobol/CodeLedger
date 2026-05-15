@@ -6,7 +6,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  IMAGE_NAME: olekssobol/codeledger
 
 jobs:
   build-and-push:
@@ -37,9 +37,6 @@ jobs:
       - name: Build web
         run: flutter build web --release
 
-      - name: Lowercase image name
-        run: echo "IMAGE_LC=$(echo '${{ env.IMAGE_NAME }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
-
       - name: Log in to ghcr.io
         uses: docker/login-action@v3
         with:
@@ -54,5 +51,5 @@ jobs:
           file: Dockerfile.web
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_LC }}:latest
-            ${{ env.REGISTRY }}/${{ env.IMAGE_LC }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
