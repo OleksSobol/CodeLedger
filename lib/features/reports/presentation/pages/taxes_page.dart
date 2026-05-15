@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../../../core/database/app_database.dart';
 import '../../../../core/providers/theme_provider.dart';
 import '../../../clients/presentation/providers/client_providers.dart';
 import '../../../export/presentation/providers/export_providers.dart';
@@ -85,6 +86,13 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
   // Receipts
   List<_Receipt> _receipts = [];
 
+  // Quarterly tax estimation
+  bool _showTaxRateSettings = false;
+  double _federalRate = 0.22;
+  double _seRate = 0.153;
+  final _federalRateCtrl = TextEditingController(text: '22.0');
+  final _seRateCtrl = TextEditingController(text: '15.3');
+
   @override
   void initState() {
     super.initState();
@@ -95,11 +103,14 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
       end: DateTime(now.year, 12, 31),
     );
     _loadReceipts();
+    _loadTaxRates();
   }
 
   @override
   void dispose() {
     _tabs.dispose();
+    _federalRateCtrl.dispose();
+    _seRateCtrl.dispose();
     super.dispose();
   }
 
@@ -122,6 +133,50 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
     final dao = ref.read(appSettingsDaoProvider);
     await dao.setValue(
         _kReceiptsKey, jsonEncode(_receipts.map((r) => r.toJson()).toList()));
+  }
+
+  // ── Tax rate settings ─────────────────────────────────────────────────────────
+
+  Future<void> _loadTaxRates() async {
+    final dao = ref.read(appSettingsDaoProvider);
+    final fed = await dao.getValue('tax.federal_rate');
+    final se = await dao.getValue('tax.se_rate');
+    if (!mounted) return;
+    setState(() {
+      if (fed != null) {
+        _federalRate = double.tryParse(fed) ?? 0.22;
+        _federalRateCtrl.text = (_federalRate * 100).toStringAsFixed(1);
+      }
+      if (se != null) {
+        _seRate = double.tryParse(se) ?? 0.153;
+        _seRateCtrl.text = (_seRate * 100).toStringAsFixed(1);
+      }
+    });
+  }
+
+  Future<void> _saveTaxRates() async {
+    final fed = (double.tryParse(_federalRateCtrl.text) ?? 22.0) / 100;
+    final se = (double.tryParse(_seRateCtrl.text) ?? 15.3) / 100;
+    final dao = ref.read(appSettingsDaoProvider);
+    await dao.setValue('tax.federal_rate', fed.toString());
+    await dao.setValue('tax.se_rate', se.toString());
+  }
+
+  double _incomeForRange(List<Invoice> invoices, DateTime start, DateTime end) {
+    double total = 0;
+    for (final inv in invoices) {
+      final validStatus = inv.status == 'paid' ||
+          (_includeArchived && inv.status == 'archived');
+      if (!validStatus) continue;
+      final reportDate = inv.paidDate ?? inv.issueDate;
+      if (reportDate.isBefore(start)) continue;
+      if (!reportDate.isBefore(end)) continue;
+      if (_selectedClientId != null && inv.clientId != _selectedClientId) {
+        continue;
+      }
+      total += inv.subtotal;
+    }
+    return total;
   }
 
   // ── Filters ──────────────────────────────────────────────────────────────────
@@ -405,6 +460,14 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
         ),
         const SizedBox(height: 12),
 
+        // ── Quarterly estimated taxes ──────────────────────────────────────
+        _buildQuarterlyCards(theme, allInvoices, cur),
+        const SizedBox(height: 12),
+
+        // ── Tax rate settings ──────────────────────────────────────────────
+        _buildTaxRateSettings(theme),
+        const SizedBox(height: 12),
+
         // ── Report actions ─────────────────────────────────────────────────
         Card(
           child: Padding(
@@ -621,6 +684,213 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
             },
             child: const Text('Add'),
           ),
+        ],
+      ),
+    );
+  }
+
+  // ── Quarterly cards ───────────────────────────────────────────────────────────
+
+  Widget _buildQuarterlyCards(
+      ThemeData theme, List<Invoice> allInvoices, NumberFormat cur) {
+    final year = _dateRange?.start.year ?? DateTime.now().year;
+    final totalExpenses = _receipts.fold(0.0, (sum, r) => sum + r.amount);
+    final now = DateTime.now();
+
+    // IRS estimated quarterly payment schedule
+    final quarters = <({String label, String dates, DateTime start, DateTime end, DateTime due})>[
+      (label: 'Q1', dates: 'Jan 1 – Mar 31',
+        start: DateTime(year, 1, 1), end: DateTime(year, 4, 1),
+        due: DateTime(year, 4, 15)),
+      (label: 'Q2', dates: 'Apr 1 – May 31',
+        start: DateTime(year, 4, 1), end: DateTime(year, 6, 1),
+        due: DateTime(year, 6, 15)),
+      (label: 'Q3', dates: 'Jun 1 – Aug 31',
+        start: DateTime(year, 6, 1), end: DateTime(year, 9, 1),
+        due: DateTime(year, 9, 15)),
+      (label: 'Q4', dates: 'Sep 1 – Dec 31',
+        start: DateTime(year, 9, 1), end: DateTime(year + 1, 1, 1),
+        due: DateTime(year + 1, 1, 15)),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Text(
+            'Estimated Quarterly Taxes ($year)',
+            style: theme.textTheme.titleSmall
+                ?.copyWith(fontWeight: FontWeight.bold),
+          ),
+        ),
+        ...quarters.map((q) {
+          final gross = _incomeForRange(allInvoices, q.start, q.end);
+          // Prorate annual expenses evenly across 4 quarters
+          final expAlloc = totalExpenses / 4;
+          final net = (gross - expAlloc).clamp(0.0, double.infinity);
+
+          // IRS SE tax: net × 92.35% × seRate
+          final seBase = net * 0.9235;
+          final seTax = seBase * _seRate;
+          // Federal: (net − half SE tax deduction) × federalRate
+          final fedBase = (net - seTax / 2).clamp(0.0, double.infinity);
+          final fedTax = fedBase * _federalRate;
+          final totalEst = seTax + fedTax;
+
+          final isPast = q.due.isBefore(now);
+          final isNear = !isPast &&
+              q.due.isBefore(now.add(const Duration(days: 14)));
+          final dueColor = gross == 0
+              ? theme.colorScheme.onSurfaceVariant
+              : isPast
+                  ? theme.colorScheme.error
+                  : isNear
+                      ? const Color(0xFFE65100)
+                      : const Color(0xFF2E7D32);
+
+          return Card(
+            margin: const EdgeInsets.only(bottom: 8),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    Expanded(
+                      child: Text(
+                        '${q.label} — ${q.dates}',
+                        style: theme.textTheme.titleSmall
+                            ?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    Text(
+                      'Due ${DateFormat.MMMd().format(q.due)}',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                          color: dueColor, fontWeight: FontWeight.w600),
+                    ),
+                  ]),
+                  if (gross == 0)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        'No income in this period',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant),
+                      ),
+                    )
+                  else ...[
+                    const SizedBox(height: 8),
+                    _SummaryRow('Gross income', cur.format(gross), theme),
+                    if (expAlloc > 0)
+                      _SummaryRow('Expenses (÷4)',
+                          '− ${cur.format(expAlloc)}', theme),
+                    _SummaryRow('Net income', cur.format(net), theme,
+                        bold: true),
+                    const Divider(height: 12),
+                    _SummaryRow(
+                        'SE tax (${(_seRate * 100).toStringAsFixed(1)}%)',
+                        cur.format(seTax),
+                        theme),
+                    _SummaryRow(
+                        'Federal (${(_federalRate * 100).toStringAsFixed(1)}%)',
+                        cur.format(fedTax),
+                        theme),
+                    const SizedBox(height: 2),
+                    _SummaryRow(
+                        'Est. payment', cur.format(totalEst), theme,
+                        bold: true),
+                  ],
+                ],
+              ),
+            ),
+          );
+        }),
+      ],
+    );
+  }
+
+  Widget _buildTaxRateSettings(ThemeData theme) {
+    return Card(
+      child: Column(
+        children: [
+          ListTile(
+            title: const Text('Tax Rate Settings'),
+            subtitle: Text(
+              'Federal ${_federalRateCtrl.text}%  ·  '
+              'SE ${_seRateCtrl.text}%',
+              style: theme.textTheme.bodySmall,
+            ),
+            trailing: Icon(_showTaxRateSettings
+                ? Icons.expand_less
+                : Icons.expand_more),
+            onTap: () {
+              if (_showTaxRateSettings) _saveTaxRates();
+              setState(
+                  () => _showTaxRateSettings = !_showTaxRateSettings);
+            },
+          ),
+          if (_showTaxRateSettings)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _federalRateCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Federal Effective Rate (%)',
+                          hintText: '22.0',
+                        ),
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
+                        onChanged: (_) => setState(() {
+                          _federalRate =
+                              (double.tryParse(_federalRateCtrl.text) ??
+                                      22.0) /
+                                  100;
+                        }),
+                        onEditingComplete: () {
+                          _saveTaxRates();
+                          FocusScope.of(context).unfocus();
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextFormField(
+                        controller: _seRateCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'SE Tax Rate (%)',
+                          hintText: '15.3',
+                        ),
+                        keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true),
+                        onChanged: (_) => setState(() {
+                          _seRate =
+                              (double.tryParse(_seRateCtrl.text) ?? 15.3) /
+                                  100;
+                        }),
+                        onEditingComplete: () {
+                          _saveTaxRates();
+                          FocusScope.of(context).unfocus();
+                        },
+                      ),
+                    ),
+                  ]),
+                  const SizedBox(height: 8),
+                  Text(
+                    'SE tax = net income × 92.35% × rate. '
+                    'Federal base = net income − (SE tax ÷ 2). '
+                    'WA has no state income tax.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
     );
