@@ -100,7 +100,7 @@ class InvoiceDao extends DatabaseAccessor<AppDatabase>
     return transaction(() async {
       final invoice = await getInvoice(invoiceId);
       final newPaid = invoice.amountPaid + amount;
-      final isPaid = newPaid >= invoice.total;
+      final isPaid = newPaid >= invoice.total - 0.005;
 
       return (update(invoices)..where((t) => t.id.equals(invoiceId)))
           .write(InvoicesCompanion(
