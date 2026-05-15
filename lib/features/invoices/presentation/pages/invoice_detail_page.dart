@@ -356,6 +356,8 @@ class _InvoiceDetailBody extends ConsumerWidget {
           data: (items) {
             final hasDates = items.any(
                 (i) => splitLineItemDescription(i.description).date != null);
+            final hasIssues = items.any(
+                (i) => i.issueReference != null && i.issueReference!.isNotEmpty);
             return Card(
             child: Column(
               children: [
@@ -377,6 +379,13 @@ class _InvoiceDetailBody extends ConsumerWidget {
                               style: theme.textTheme.labelSmall?.copyWith(
                                   fontWeight: FontWeight.bold)),
                         ),
+                      if (hasIssues)
+                        SizedBox(
+                          width: 80,
+                          child: Text('Issue #',
+                              style: theme.textTheme.labelSmall?.copyWith(
+                                  fontWeight: FontWeight.bold)),
+                        ),
                       Expanded(
                           flex: 3,
                           child: Text('Description',
@@ -395,6 +404,7 @@ class _InvoiceDetailBody extends ConsumerWidget {
                         item: item,
                         currency: invoice.currency,
                         showDateColumn: hasDates,
+                        showIssueColumn: hasIssues,
                       ),
                     )),
                 if (items.isNotEmpty)
@@ -774,10 +784,12 @@ class _LineItemRow extends StatelessWidget {
   final InvoiceLineItem item;
   final String currency;
   final bool showDateColumn;
+  final bool showIssueColumn;
   const _LineItemRow({
     required this.item,
     required this.currency,
     this.showDateColumn = false,
+    this.showIssueColumn = false,
   });
 
   @override
@@ -793,6 +805,16 @@ class _LineItemRow extends StatelessWidget {
               width: 80,
               child: Text(
                 split.date ?? '',
+                style: theme.textTheme.bodySmall,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          if (showIssueColumn)
+            SizedBox(
+              width: 80,
+              child: Text(
+                item.issueReference ?? '',
                 style: theme.textTheme.bodySmall,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
