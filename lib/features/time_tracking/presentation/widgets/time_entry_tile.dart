@@ -71,6 +71,7 @@ class TimeEntryTile extends ConsumerWidget {
       },
       onDismissed: (_) {
         ref.read(timerNotifierProvider.notifier).deleteEntry(entry.id);
+        ref.invalidate(allTagsProvider);
       },
       child: Card(
         clipBehavior: Clip.antiAlias,
@@ -167,6 +168,7 @@ class TimeEntryTile extends ConsumerWidget {
                     ref
                         .read(timerNotifierProvider.notifier)
                         .deleteEntry(entry.id);
+                    ref.invalidate(allTagsProvider);
                   }
                 },
               ),
