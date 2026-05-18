@@ -3,6 +3,7 @@ import 'package:drift/drift.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../core/database/daos/client_dao.dart';
 import '../../../../core/providers/database_provider.dart';
+import '../../../projects/presentation/providers/project_providers.dart';
 
 final clientDaoProvider = Provider<ClientDao>((ref) {
   return ClientDao(ref.watch(databaseProvider));
@@ -124,8 +125,11 @@ class ClientNotifier extends AsyncNotifier<List<Client>> {
     return result;
   }
 
-  /// Check if client has time entries or invoices.
-  Future<bool> hasLinkedRecords(int id) => _dao.hasLinkedRecords(id);
+  /// Check if client has time entries, invoices, or projects.
+  Future<bool> hasLinkedRecords(int id) async {
+    if (await _dao.hasLinkedRecords(id)) return true;
+    return ref.read(projectDaoProvider).hasProjectsForClient(id);
+  }
 
   /// Permanently delete a client (only if no linked records).
   Future<void> deleteClient(int id) async {

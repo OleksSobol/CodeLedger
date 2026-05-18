@@ -55,4 +55,13 @@ class ProjectDao extends DatabaseAccessor<AppDatabase>
       const ProjectsCompanion(isArchived: Value(true)),
     );
   }
+
+  /// Returns true if any projects (including archived) exist for this client.
+  Future<bool> hasProjectsForClient(int clientId) async {
+    final result = await (select(projects)
+          ..where((t) => t.clientId.equals(clientId))
+          ..limit(1))
+        .get();
+    return result.isNotEmpty;
+  }
 }

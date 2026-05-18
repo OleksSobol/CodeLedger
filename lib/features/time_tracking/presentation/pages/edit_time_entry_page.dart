@@ -212,7 +212,10 @@ class _EditTimeEntryPageState extends ConsumerState<EditTimeEntryPage> {
                   await ref
                       .read(timerNotifierProvider.notifier)
                       .deleteEntry(widget.entry.id);
-                  if (mounted) nav.pop(true);
+                  if (mounted) {
+                    ref.invalidate(allTagsProvider);
+                    nav.pop(true);
+                  }
                 }
               },
             ),
