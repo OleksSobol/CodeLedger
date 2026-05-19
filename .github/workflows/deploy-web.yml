@@ -29,7 +29,7 @@ jobs:
       - name: Create credentials stub
         run: |
           mkdir -p lib/core/constants
-          printf 'const String googleServerClientId = "";\nconst String googleWebClientId = "";\n' > lib/core/constants/google_credentials.dart
+          printf 'const String googleServerClientId = "";\nconst String googleWebClientId = "${{ secrets.GOOGLE_WEB_CLIENT_ID }}";\n' > lib/core/constants/google_credentials.dart
 
       - name: Generate code
         run: dart run build_runner build --delete-conflicting-outputs
