@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/providers/web_auth_provider.dart';
+import '../../../../core/widgets/google_sign_in_button.dart';
 
 class WebLoginPage extends ConsumerWidget {
   const WebLoginPage({super.key});
@@ -10,7 +11,10 @@ class WebLoginPage extends ConsumerWidget {
     final theme = Theme.of(context);
     final authAsync = ref.watch(webAuthProvider);
     final isLoading = authAsync.isLoading;
-    final errorMsg = authAsync.hasError ? authAsync.error.toString() : null;
+    final errorMsg = switch (authAsync) {
+      AsyncError(:final error) => error.toString(),
+      _ => null,
+    };
 
     return Scaffold(
       body: Center(
@@ -41,22 +45,10 @@ class WebLoginPage extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(height: 48),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: isLoading
-                        ? null
-                        : () => ref.read(webAuthProvider.notifier).signIn(),
-                    icon: isLoading
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.login),
-                    label: Text(isLoading ? 'Signing in…' : 'Sign in with Google'),
-                  ),
-                ),
+                if (isLoading)
+                  const CircularProgressIndicator()
+                else
+                  buildGoogleSignInButton(),
                 if (errorMsg != null) ...[
                   const SizedBox(height: 16),
                   Text(

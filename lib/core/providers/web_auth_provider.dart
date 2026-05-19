@@ -13,20 +13,22 @@ class WebAuthNotifier extends AsyncNotifier<GoogleSignInAccount?> {
   Future<GoogleSignInAccount?> build() async {
     if (!kIsWeb) return null;
     await ensureGoogleSignInInitialized();
+
+    // Subscribe to sign-in events fired by renderButton.
+    final sub = GoogleSignIn.instance.authenticationEvents.listen((event) {
+      switch (event) {
+        case GoogleSignInAuthenticationEventSignIn(:final user):
+          state = AsyncData(user);
+        case GoogleSignInAuthenticationEventSignOut():
+          state = const AsyncData(null);
+      }
+    });
+    ref.onDispose(sub.cancel);
+
+    // Try silent sign-in for returning users.
     final result = GoogleSignIn.instance.attemptLightweightAuthentication();
     if (result != null) return await result;
     return null;
-  }
-
-  Future<void> signIn() async {
-    state = const AsyncLoading();
-    try {
-      await ensureGoogleSignInInitialized();
-      final user = await GoogleSignIn.instance.authenticate();
-      state = AsyncData(user);
-    } catch (e, st) {
-      state = AsyncError(e, st);
-    }
   }
 
   Future<void> signOut() async {
