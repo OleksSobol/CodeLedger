@@ -21,88 +21,110 @@ class FinancialSummaryRow extends ConsumerWidget {
     final overdueAsync = ref.watch(overdueInvoicesProvider);
     final uninvoicedAsync = ref.watch(uninvoicedByClientProvider);
 
+    final isWide = MediaQuery.sizeOf(context).width >= 600;
+
+    final tiles = [
+      _InsightTile(
+        label: '$monthName Income',
+        value: incomeAsync.when(
+          loading: () => '...',
+          error: (_, _) => '--',
+          data: (v) => formatCurrency(v),
+        ),
+        icon: Icons.trending_up,
+        accentColor: theme.colorScheme.primary,
+        wide: isWide,
+        onTap: () => context.push('/reports'),
+      ),
+      _InsightTile(
+        label: 'Outstanding',
+        value: outstandingAsync.when(
+          loading: () => '...',
+          error: (_, _) => '--',
+          data: (v) => v.count == 0 ? 'None' : formatCurrency(v.total),
+        ),
+        icon: Icons.send_outlined,
+        accentColor: theme.colorScheme.secondary,
+        badge: outstandingAsync.whenOrNull(
+            data: (v) => v.count > 0 ? '${v.count}' : null),
+        wide: isWide,
+        onTap: () {
+          ref.read(invoiceStatusFilterProvider.notifier).set('sent');
+          context.go('/invoices');
+        },
+      ),
+      _InsightTile(
+        label: 'Overdue',
+        value: overdueAsync.when(
+          loading: () => '...',
+          error: (_, _) => '--',
+          data: (v) => v.count == 0 ? 'None' : formatCurrency(v.total),
+        ),
+        icon: overdueAsync.whenOrNull(
+                data: (v) => v.count > 0
+                    ? Icons.warning_amber_rounded
+                    : Icons.check_circle_outline) ??
+            Icons.warning_amber_rounded,
+        accentColor: overdueAsync.whenOrNull(
+                data: (v) =>
+                    v.count > 0 ? theme.colorScheme.error : null) ??
+            theme.colorScheme.tertiary,
+        badge: overdueAsync.whenOrNull(
+            data: (v) => v.count > 0 ? '${v.count}' : null),
+        wide: isWide,
+        onTap: () {
+          ref.read(invoiceStatusFilterProvider.notifier).set('overdue');
+          context.go('/invoices');
+        },
+      ),
+      _InsightTile(
+        label: 'Uninvoiced',
+        value: uninvoicedAsync.when(
+          loading: () => '...',
+          error: (_, _) => '--',
+          data: (items) {
+            final totalHours =
+                items.fold<double>(0, (sum, i) => sum + i.hours);
+            return totalHours > 0
+                ? '${totalHours.toStringAsFixed(1)}h'
+                : 'All clear';
+          },
+        ),
+        icon: uninvoicedAsync.whenOrNull(
+                data: (items) {
+                  final h = items.fold<double>(0, (s, i) => s + i.hours);
+                  return h > 0
+                      ? Icons.hourglass_empty
+                      : Icons.check_circle_outline;
+                }) ??
+            Icons.hourglass_empty,
+        accentColor: theme.colorScheme.tertiary,
+        wide: isWide,
+        onTap: () => context.push('/invoices/create'),
+      ),
+    ];
+
+    if (isWide) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: Spacing.md),
+        child: Row(
+          children: [
+            for (int i = 0; i < tiles.length; i++) ...[
+              Expanded(child: tiles[i]),
+              if (i < tiles.length - 1) const SizedBox(width: Spacing.sm),
+            ],
+          ],
+        ),
+      );
+    }
+
     return SizedBox(
       height: 100,
       child: ListView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: Spacing.md),
         clipBehavior: Clip.none,
-        children: [
-          _InsightTile(
-            label: '$monthName Income',
-            value: incomeAsync.when(
-              loading: () => '...',
-              error: (_, _) => '--',
-              data: (v) => formatCurrency(v),
-            ),
-            icon: Icons.trending_up,
-            accentColor: theme.colorScheme.primary,
-            onTap: () => context.push('/reports'),
-          ),
-          _InsightTile(
-            label: 'Outstanding',
-            value: outstandingAsync.when(
-              loading: () => '...',
-              error: (_, _) => '--',
-              data: (v) => v.count == 0 ? 'None' : formatCurrency(v.total),
-            ),
-            icon: Icons.send_outlined,
-            accentColor: theme.colorScheme.secondary,
-            badge: outstandingAsync.whenOrNull(
-                data: (v) => v.count > 0 ? '${v.count}' : null),
-            onTap: () {
-              ref.read(invoiceStatusFilterProvider.notifier).set('sent');
-              context.go('/invoices');
-            },
-          ),
-          _InsightTile(
-            label: 'Overdue',
-            value: overdueAsync.when(
-              loading: () => '...',
-              error: (_, _) => '--',
-              data: (v) => v.count == 0 ? 'None' : formatCurrency(v.total),
-            ),
-            icon: overdueAsync.whenOrNull(
-                    data: (v) => v.count > 0
-                        ? Icons.warning_amber_rounded
-                        : Icons.check_circle_outline) ??
-                Icons.warning_amber_rounded,
-            accentColor: overdueAsync.whenOrNull(
-                    data: (v) =>
-                        v.count > 0 ? theme.colorScheme.error : null) ??
-                theme.colorScheme.tertiary,
-            badge: overdueAsync.whenOrNull(
-                data: (v) => v.count > 0 ? '${v.count}' : null),
-            onTap: () {
-              ref.read(invoiceStatusFilterProvider.notifier).set('overdue');
-              context.go('/invoices');
-            },
-          ),
-          _InsightTile(
-            label: 'Uninvoiced',
-            value: uninvoicedAsync.when(
-              loading: () => '...',
-              error: (_, _) => '--',
-              data: (items) {
-                final totalHours =
-                    items.fold<double>(0, (sum, i) => sum + i.hours);
-                return totalHours > 0
-                    ? '${totalHours.toStringAsFixed(1)}h'
-                    : 'All clear';
-              },
-            ),
-            icon: uninvoicedAsync.whenOrNull(
-                    data: (items) {
-                      final h = items.fold<double>(0, (s, i) => s + i.hours);
-                      return h > 0
-                          ? Icons.hourglass_empty
-                          : Icons.check_circle_outline;
-                    }) ??
-                Icons.hourglass_empty,
-            accentColor: theme.colorScheme.tertiary,
-            onTap: () => context.push('/invoices/create'),
-          ),
-        ],
+        children: tiles,
       ),
     );
   }
@@ -115,6 +137,7 @@ class _InsightTile extends StatelessWidget {
   final Color accentColor;
   final String? badge;
   final VoidCallback? onTap;
+  final bool wide;
 
   const _InsightTile({
     required this.label,
@@ -123,19 +146,16 @@ class _InsightTile extends StatelessWidget {
     required this.accentColor,
     this.badge,
     this.onTap,
+    this.wide = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Padding(
-      padding: const EdgeInsets.only(right: Spacing.sm),
-      child: SizedBox(
-        width: 175,
-        child: Card(
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
+    final card = Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
             onTap: onTap,
             child: Row(
               children: [
@@ -202,8 +222,12 @@ class _InsightTile extends StatelessWidget {
               ],
             ),
           ),
-        ),
-      ),
+    );
+
+    if (wide) return card;
+    return Padding(
+      padding: const EdgeInsets.only(right: Spacing.sm),
+      child: SizedBox(width: 175, child: card),
     );
   }
 }

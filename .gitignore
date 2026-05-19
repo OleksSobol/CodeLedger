@@ -62,3 +62,7 @@ lib/core/constants/google_credentials.dart
 *.keystore
 *.jks
 key.properties
+
+# Generated web assets (produced by CI)
+web/sqlite3.wasm
+web/drift_worker.js

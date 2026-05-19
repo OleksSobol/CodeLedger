@@ -34,6 +34,15 @@ jobs:
       - name: Generate code
         run: dart run build_runner build --delete-conflicting-outputs
 
+      - name: Download sqlite3.wasm
+        run: |
+          SQLITE3_VERSION=$(grep -A8 "name: sqlite3$" pubspec.lock | grep 'version:' | head -1 | sed "s/.*version: '//;s/'//;s/.*version: \"//;s/\"//;s/ //g")
+          echo "sqlite3 version: $SQLITE3_VERSION"
+          curl -L "https://github.com/simolus3/sqlite3.dart/releases/download/sqlite3-${SQLITE3_VERSION}/sqlite3.wasm" -o web/sqlite3.wasm
+
+      - name: Compile drift web worker
+        run: dart compile js web/drift_worker.dart -O2 -o web/drift_worker.js
+
       - name: Build web
         run: flutter build web --release
 

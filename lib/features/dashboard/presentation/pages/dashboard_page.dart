@@ -16,19 +16,20 @@ class DashboardPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
 
-    return Scaffold(
-      body: RefreshIndicator(
-        onRefresh: () async {
-          ref.invalidate(runningEntryProvider);
-          ref.invalidate(recentEntriesProvider);
-          ref.invalidate(monthlyIncomeProvider);
-          ref.invalidate(outstandingInvoicesProvider);
-          ref.invalidate(overdueInvoicesProvider);
-          ref.invalidate(uninvoicedByClientProvider);
-          ref.invalidate(weeklyHoursProvider);
-          await Future.delayed(const Duration(milliseconds: 300));
-        },
-        child: CustomScrollView(
+    final isWide = MediaQuery.sizeOf(context).width >= 600;
+
+    Widget body = RefreshIndicator(
+      onRefresh: () async {
+        ref.invalidate(runningEntryProvider);
+        ref.invalidate(recentEntriesProvider);
+        ref.invalidate(monthlyIncomeProvider);
+        ref.invalidate(outstandingInvoicesProvider);
+        ref.invalidate(overdueInvoicesProvider);
+        ref.invalidate(uninvoicedByClientProvider);
+        ref.invalidate(weeklyHoursProvider);
+        await Future.delayed(const Duration(milliseconds: 300));
+      },
+      child: CustomScrollView(
           slivers: [
             // 1. Context Header (SliverAppBar with greeting)
             const ContextHeader(),
@@ -85,7 +86,17 @@ class DashboardPage extends ConsumerWidget {
             ),
           ],
         ),
-      ),
     );
+
+    if (isWide) {
+      body = Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 960),
+          child: body,
+        ),
+      );
+    }
+
+    return Scaffold(body: body);
   }
 }

@@ -8,6 +8,7 @@ Offline-first time tracking and invoicing app for freelance developers. Built wi
 
 ### Time Tracking
 - Clock in/out timer with overlap detection and running duration display
+- **Multi-company clocking** — run simultaneous timers for different clients at the same time (toggle in Settings → Time Tracking); dashboard and Time Tracking page each surface a "Clock In Another Client" button when enabled
 - Manual entry and editing — date, times, rate, description, project, issue reference, repository, tags
 - Project selection on time entries (filterable by client)
 - Configurable tile layout — show/hide and reorder fields (time, client, description, issue, repo, tags, badges)
@@ -45,6 +46,12 @@ Offline-first time tracking and invoicing app for freelance developers. Built wi
 - **Encrypted backups** — AES-256-GCM to local storage or Google Drive
 - **Erase all data** — double-confirmation reset (passphrase preserved)
 - **Dark mode** — System / Light / Dark theme switcher
+
+### Web
+- Responsive layout — `NavigationRail` sidebar on wide screens, bottom nav on mobile
+- **Google Sign-In gate** — web deployment requires Google account login before accessing data
+- SQLite via WASM (`sqlite3.wasm` + Drift web worker) for persistent browser storage
+- Auto-deployed as Docker image on every push to `main` via GitHub Actions
 
 ## Tech Stack
 - **Flutter** (Android, iOS, Web, Windows)
