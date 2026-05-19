@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -26,7 +27,7 @@ class _BackupPageState extends ConsumerState<BackupPage> {
   @override
   void initState() {
     super.initState();
-    _trySilentSignIn();
+    if (!kIsWeb) _trySilentSignIn();
   }
 
   Future<void> _trySilentSignIn() async {
@@ -363,25 +364,27 @@ class _BackupPageState extends ConsumerState<BackupPage> {
           const SizedBox(height: Spacing.lg),
 
           // -- Google Drive Section --
-          _GoogleDriveSection(
-            isSignedIn: isSignedIn,
-            isWorking: isWorking,
-            email: ref.watch(driveEmailProvider),
-            uiState: uiState,
-            onSignIn: _signInToDrive,
-            onSignOut: _signOut,
-            onBackup: _backupToDrive,
-            onRestore: _restoreFromDrive,
-          ),
-
-          // -- Drive Backups List --
-          if (isSignedIn) ...[
-            const SizedBox(height: Spacing.lg),
-            _DriveBackupsList(
+          if (kIsWeb)
+            const _GoogleDriveWebUnavailable()
+          else ...[
+            _GoogleDriveSection(
+              isSignedIn: isSignedIn,
               isWorking: isWorking,
-              onRestore: _restoreFromDriveEntry,
-              onDelete: _deleteDriveBackup,
+              email: ref.watch(driveEmailProvider),
+              uiState: uiState,
+              onSignIn: _signInToDrive,
+              onSignOut: _signOut,
+              onBackup: _backupToDrive,
+              onRestore: _restoreFromDrive,
             ),
+            if (isSignedIn) ...[
+              const SizedBox(height: Spacing.lg),
+              _DriveBackupsList(
+                isWorking: isWorking,
+                onRestore: _restoreFromDriveEntry,
+                onDelete: _deleteDriveBackup,
+              ),
+            ],
           ],
 
           // -- Danger Zone --
@@ -661,6 +664,41 @@ class _DriveBackupsList extends ConsumerWidget {
               }).toList(),
             );
           },
+        ),
+      ],
+    );
+  }
+}
+
+// ============================================================
+// Web unavailable placeholder
+// ============================================================
+
+class _GoogleDriveWebUnavailable extends StatelessWidget {
+  const _GoogleDriveWebUnavailable();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AppSectionCard(
+      title: 'Google Drive',
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(Spacing.lg),
+          child: Column(
+            children: [
+              Icon(Icons.cloud_off_outlined,
+                  size: 48, color: theme.colorScheme.outline),
+              const SizedBox(height: Spacing.md),
+              Text(
+                'Google Drive backup is not available on web.\nUse the mobile or desktop app.',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
         ),
       ],
     );
