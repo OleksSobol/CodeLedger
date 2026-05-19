@@ -356,11 +356,14 @@ class _BackupPageState extends ConsumerState<BackupPage> {
       body: AppPageBody(
         children: [
           // -- Local Section --
-          _LocalBackupSection(
-            isWorking: isWorking,
-            onCreateBackup: _createLocalBackup,
-            onRestoreBackup: _restoreLocalBackup,
-          ),
+          if (kIsWeb)
+            const _LocalBackupWebUnavailable()
+          else
+            _LocalBackupSection(
+              isWorking: isWorking,
+              onCreateBackup: _createLocalBackup,
+              onRestoreBackup: _restoreLocalBackup,
+            ),
           const SizedBox(height: Spacing.lg),
 
           // -- Google Drive Section --
@@ -671,8 +674,39 @@ class _DriveBackupsList extends ConsumerWidget {
 }
 
 // ============================================================
-// Web unavailable placeholder
+// Web unavailable placeholders
 // ============================================================
+
+class _LocalBackupWebUnavailable extends StatelessWidget {
+  const _LocalBackupWebUnavailable();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AppSectionCard(
+      title: 'Local',
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(Spacing.lg),
+          child: Column(
+            children: [
+              Icon(Icons.folder_off_outlined,
+                  size: 48, color: theme.colorScheme.outline),
+              const SizedBox(height: Spacing.md),
+              Text(
+                'Local file backup is not available on web.\nUse the mobile or desktop app.',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
 
 class _GoogleDriveWebUnavailable extends StatelessWidget {
   const _GoogleDriveWebUnavailable();

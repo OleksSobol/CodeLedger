@@ -41,31 +41,38 @@ class _GitHubSyncPreviewPageState
 
   Future<void> _runScan() async {
     final notifier = ref.read(githubSyncNotifierProvider.notifier);
-    final result = await notifier.previewSync(
-      widget.start,
-      widget.end,
-      onLog: (log) {
-        if (mounted) {
-          setState(() => _liveLog.add(log));
-          // Auto-scroll to bottom
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (_logScrollCtrl.hasClients) {
-              _logScrollCtrl.animateTo(
-                _logScrollCtrl.position.maxScrollExtent,
-                duration: const Duration(milliseconds: 150),
-                curve: Curves.easeOut,
-              );
-            }
-          });
-        }
-      },
-    );
-    if (!mounted) return;
-    setState(() {
-      _preview = result;
-      _loading = false;
-      _selected.addAll(List.generate(result.matches.length, (i) => i));
-    });
+    try {
+      final result = await notifier.previewSync(
+        widget.start,
+        widget.end,
+        onLog: (log) {
+          if (mounted) {
+            setState(() => _liveLog.add(log));
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (_logScrollCtrl.hasClients) {
+                _logScrollCtrl.animateTo(
+                  _logScrollCtrl.position.maxScrollExtent,
+                  duration: const Duration(milliseconds: 150),
+                  curve: Curves.easeOut,
+                );
+              }
+            });
+          }
+        },
+      );
+      if (!mounted) return;
+      setState(() {
+        _preview = result;
+        _loading = false;
+        _selected.addAll(List.generate(result.matches.length, (i) => i));
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _preview = GitHubSyncPreview(error: 'Unexpected error: $e');
+        _loading = false;
+      });
+    }
   }
 
   Future<void> _apply() async {

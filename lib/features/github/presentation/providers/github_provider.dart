@@ -84,12 +84,14 @@ class GitHubSyncNotifier extends AsyncNotifier<void> {
   /// not repos × entries × (branches/10 + 1), so a month scan stays fast.
   Future<GitHubSyncPreview> previewSync(
       DateTime start, DateTime end, {void Function(SyncLog)? onLog}) async {
+    void emit(String msg, [SyncLogLevel level = SyncLogLevel.info]) =>
+        onLog?.call(SyncLog(msg, level));
+    void emitError(String msg) => emit(msg, SyncLogLevel.error);
+
+    emit('Reading settings…');
     final dao = ref.read(appSettingsDaoProvider);
     final pat = await dao.getValue('github_pat');
     final username = await dao.getValue('github_username');
-
-    void emitError(String msg) =>
-        onLog?.call(SyncLog(msg, SyncLogLevel.error));
 
     if (pat == null || pat.isEmpty) {
       emitError('GitHub PAT not configured. Go to Settings → Accounts.');
@@ -103,10 +105,12 @@ class GitHubSyncNotifier extends AsyncNotifier<void> {
         error: 'GitHub username not configured. Go to Settings → Accounts.',
       );
     }
+    emit('PAT ok. Loading projects…');
 
     final service = GitHubService(pat: pat, username: username, onLog: onLog);
 
-    final allProjects = await ref.read(allActiveProjectsProvider.future);
+    final allProjects =
+        await ref.read(projectDaoProvider).watchAllActiveProjects().first;
     final linkedProjects = allProjects
         .where((p) => p.githubRepo != null && p.githubRepo!.isNotEmpty)
         .toList();
@@ -117,24 +121,21 @@ class GitHubSyncNotifier extends AsyncNotifier<void> {
         error: 'No projects have a GitHub repo linked. Edit a project to add one.',
       );
     }
+    emit('Loading clients…');
 
-    final allClients = await ref.read(allClientsProvider.future);
+    final allClients = await ref.read(clientDaoProvider).watchAllClients().first;
     final clientById = {for (final c in allClients) c.id: c.name};
 
     // Cap end at today — never scan future dates.
     final now = DateTime.now();
     final tomorrow = DateTime(now.year, now.month, now.day + 1);
     final scanStart = DateTime(start.year, start.month, start.day);
-    final scanEnd = () {
-      final raw = DateTime(end.year, end.month, end.day + 1);
-      return raw.isBefore(tomorrow) ? raw : tomorrow;
-    }();
+    final scanEnd = end.isBefore(tomorrow) ? end : tomorrow;
 
-    service.logs.add(SyncLog(
+    emit(
       'Scanning ${linkedProjects.length} linked project(s) for '
       '${_fmtDate(scanStart)} – ${_fmtDate(scanEnd.subtract(const Duration(days: 1)))}',
-      SyncLogLevel.info,
-    ));
+    );
 
     // Verify repo access and pre-fetch branch lists — once per repo.
     final accessOk = <String, bool>{};
@@ -145,21 +146,20 @@ class GitHubSyncNotifier extends AsyncNotifier<void> {
         accessOk[repo] = await service.verifyRepoAccess(repo);
       }
       if (accessOk[repo] == true && !branchCache.containsKey(repo)) {
+        emit('  Fetching Issue-* branches for $repo…');
         branchCache[repo] = await service.listIssueBranches(repo);
-        service.logs.add(SyncLog(
-          '  $repo: ${branchCache[repo]!.length} Issue-* branch(es)',
-          SyncLogLevel.info,
-        ));
+        emit('  $repo: ${branchCache[repo]!.length} Issue-* branch(es)');
       }
     }
 
     // Fetch all entries in range in one DB call.
+    emit('Loading time entries…');
     final timeEntryDao = ref.read(timeEntryDaoProvider);
     final allEntries =
         await timeEntryDao.getAllEntries(from: scanStart, to: scanEnd);
 
     if (allEntries.isEmpty) {
-      service.logs.add(SyncLog('No time entries in range.', SyncLogLevel.info));
+      emit('No time entries in range.');
       return GitHubSyncPreview(logs: List.from(service.logs));
     }
 
@@ -183,6 +183,7 @@ class GitHubSyncNotifier extends AsyncNotifier<void> {
         final cacheKey = '$repo::${_fmtDate(localDay)}';
 
         if (!commitCache.containsKey(cacheKey)) {
+          emit('  Scanning commits for $repo on ${_fmtDate(localDay)}…');
           final dayStart = localDay.toUtc();
           final dayEnd = localDay.add(const Duration(days: 1)).toUtc();
           commitCache[cacheKey] = await service.getRefsWithTimestampsForDay(
@@ -239,10 +240,7 @@ class GitHubSyncNotifier extends AsyncNotifier<void> {
       }
     }
 
-    service.logs.add(SyncLog(
-      'Scan complete - ${matches.length} match(es) found.',
-      SyncLogLevel.info,
-    ));
+    emit('Scan complete — ${matches.length} match(es) found.');
 
     return GitHubSyncPreview(
       matches: matches,
@@ -300,7 +298,8 @@ class GitHubSyncNotifier extends AsyncNotifier<void> {
 
     final repoResults = <String, bool>{};
     if (patError == null) {
-      final allProjects = await ref.read(allActiveProjectsProvider.future);
+      final allProjects =
+          await ref.read(projectDaoProvider).watchAllActiveProjects().first;
       final linkedRepos = allProjects
           .where((p) => p.githubRepo != null && p.githubRepo!.isNotEmpty)
           .map((p) => GitHubService.normalizeRepo(p.githubRepo!))
