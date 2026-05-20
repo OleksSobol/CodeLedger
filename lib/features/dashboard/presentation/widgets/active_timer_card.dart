@@ -219,7 +219,9 @@ class _ActiveTimerCardState extends ConsumerState<ActiveTimerCard>
             description: lastEntry.description,
             repository: lastEntry.repository,
             issueReference: lastEntry.issueReference,
+            tags: lastEntry.tags,
           );
+      ref.invalidate(allTagsProvider);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
