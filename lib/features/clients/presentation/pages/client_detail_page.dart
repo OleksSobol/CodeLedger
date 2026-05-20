@@ -8,7 +8,7 @@ import '../../../projects/presentation/widgets/project_list_tile.dart';
 import '../../../projects/presentation/providers/project_providers.dart';
 
 class ClientDetailPage extends ConsumerWidget {
-  final int clientId;
+  final String clientId;
 
   const ClientDetailPage({super.key, required this.clientId});
 

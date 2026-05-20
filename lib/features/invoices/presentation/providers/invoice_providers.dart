@@ -2,13 +2,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:drift/drift.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/database/app_database.dart';
-import '../../../../core/database/daos/invoice_dao.dart';
-import '../../../../core/database/daos/user_profile_dao.dart';
 import '../../../../core/constants/payment_terms.dart';
-import '../../../clients/presentation/providers/client_providers.dart';
+import '../../../../core/providers/repository_providers.dart';
+import '../../../../core/repositories/invoice_repository.dart';
+import '../../../../core/repositories/user_profile_repository.dart';
 import '../../../dashboard/presentation/providers/dashboard_provider.dart';
-import '../../../time_tracking/presentation/providers/time_entry_providers.dart';
-import '../../../profile/presentation/providers/profile_provider.dart';
 
 // ── Status filter ──────────────────────────────────────────────────
 class InvoiceStatusFilterNotifier extends Notifier<String?> {
@@ -23,7 +21,7 @@ final invoiceStatusFilterProvider =
 
 // ── All invoices stream ────────────────────────────────────────────
 final allInvoicesProvider = StreamProvider<List<Invoice>>((ref) {
-  return ref.watch(invoiceDaoProvider).watchInvoices();
+  return ref.watch(invoiceRepositoryProvider).watchInvoices();
 });
 
 // ── Filtered invoices ──────────────────────────────────────────────
@@ -33,7 +31,6 @@ final filteredInvoicesProvider = Provider<AsyncValue<List<Invoice>>>((ref) {
 
   return allAsync.whenData((invoices) {
     if (statusFilter == null) {
-      // "All" hides archived invoices
       return invoices.where((i) => i.status != 'archived').toList();
     }
     return invoices.where((i) => i.status == statusFilter).toList();
@@ -42,33 +39,31 @@ final filteredInvoicesProvider = Provider<AsyncValue<List<Invoice>>>((ref) {
 
 // ── Single invoice by ID ───────────────────────────────────────────
 final invoiceDetailProvider =
-    FutureProvider.family<Invoice, int>((ref, id) async {
-  return ref.watch(invoiceDaoProvider).getInvoice(id);
+    FutureProvider.family<Invoice, String>((ref, id) async {
+  return ref.watch(invoiceRepositoryProvider).getInvoice(id);
 });
 
 // ── Line items for invoice ─────────────────────────────────────────
 final invoiceLineItemsProvider =
-    StreamProvider.family<List<InvoiceLineItem>, int>((ref, invoiceId) {
-  return ref.watch(invoiceDaoProvider).watchLineItems(invoiceId);
+    StreamProvider.family<List<InvoiceLineItem>, String>((ref, invoiceId) {
+  return ref.watch(invoiceRepositoryProvider).watchLineItems(invoiceId);
 });
 
 // ── Uninvoiced entries for a client ────────────────────────────────
-// Using autoDispose so this re-fetches each time the wizard opens,
-// picking up any recently-added manual entries.
 final uninvoicedEntriesProvider = FutureProvider.autoDispose
-    .family<List<TimeEntry>, int>((ref, clientId) async {
-  return ref.watch(timeEntryDaoProvider).getUninvoicedForClient(clientId);
+    .family<List<TimeEntry>, String>((ref, clientId) async {
+  return ref.watch(timeEntryRepositoryProvider).getUninvoicedForClient(clientId);
 });
 
 // ── Invoice wizard state ───────────────────────────────────────────
 
 class InvoiceWizardState {
-  final int? clientId;
+  final String? clientId;
   final List<TimeEntry> selectedEntries;
   final List<ManualLineItem> manualLineItems;
   final String? notes;
   final double? taxRateOverride;
-  final int? templateId;
+  final String? templateId;
 
   const InvoiceWizardState({
     this.clientId,
@@ -80,12 +75,12 @@ class InvoiceWizardState {
   });
 
   InvoiceWizardState copyWith({
-    int? clientId,
+    String? clientId,
     List<TimeEntry>? selectedEntries,
     List<ManualLineItem>? manualLineItems,
     String? notes,
     double? taxRateOverride,
-    int? templateId,
+    String? templateId,
   }) {
     return InvoiceWizardState(
       clientId: clientId ?? this.clientId,
@@ -130,7 +125,7 @@ class InvoiceWizardNotifier extends Notifier<InvoiceWizardState> {
   @override
   InvoiceWizardState build() => const InvoiceWizardState();
 
-  void setClient(int clientId) {
+  void setClient(String clientId) {
     state = InvoiceWizardState(clientId: clientId);
   }
 
@@ -177,7 +172,7 @@ class InvoiceWizardNotifier extends Notifier<InvoiceWizardState> {
     state = state.copyWith(taxRateOverride: rate);
   }
 
-  void setTemplate(int? templateId) {
+  void setTemplate(String? templateId) {
     state = state.copyWith(templateId: templateId);
   }
 
@@ -191,17 +186,16 @@ final invoiceNotifierProvider =
     AsyncNotifierProvider<InvoiceNotifier, void>(InvoiceNotifier.new);
 
 class InvoiceNotifier extends AsyncNotifier<void> {
-  late InvoiceDao _invoiceDao;
-  late UserProfileDao _profileDao;
+  late InvoiceRepository _invoiceDao;
+  late UserProfileRepository _profileDao;
 
   @override
   Future<void> build() async {
-    _invoiceDao = ref.watch(invoiceDaoProvider);
-    _profileDao = ref.watch(userProfileDaoProvider);
+    _invoiceDao = ref.watch(invoiceRepositoryProvider);
+    _profileDao = ref.watch(userProfileRepositoryProvider);
   }
 
-  /// Create an invoice from the wizard state.
-  Future<int> createInvoice() async {
+  Future<String> createInvoice() async {
     final wizard = ref.read(invoiceWizardProvider);
     if (wizard.clientId == null) throw Exception('No client selected');
     if (wizard.selectedEntries.isEmpty && wizard.manualLineItems.isEmpty) {
@@ -210,9 +204,8 @@ class InvoiceNotifier extends AsyncNotifier<void> {
 
     final profile = await _profileDao.getProfile();
     final client =
-        await ref.read(clientDaoProvider).getClient(wizard.clientId!);
+        await ref.read(clientRepositoryProvider).getClient(wizard.clientId!);
 
-    // Resolve payment terms
     final termsStr =
         client.paymentTermsOverride ?? profile.defaultPaymentTerms;
     final terms = PaymentTerms.fromString(termsStr);
@@ -221,20 +214,16 @@ class InvoiceNotifier extends AsyncNotifier<void> {
           client.paymentTermsDaysOverride ?? profile.defaultPaymentTermsDays,
     );
 
-    // Resolve tax rate
     final taxRate =
         wizard.taxRateOverride ?? client.taxRate ?? profile.defaultTaxRate;
     final taxLabel = profile.defaultTaxLabel;
 
-    // Get invoice number
     final invoiceNumber = await _profileDao.getNextInvoiceNumber();
 
-    // Calculate totals
     final subtotal = wizard.subtotal;
     final taxAmount = subtotal * (taxRate / 100);
     final total = subtotal + taxAmount;
 
-    // Determine period
     DateTime? periodStart;
     DateTime? periodEnd;
     if (wizard.selectedEntries.isNotEmpty) {
@@ -249,19 +238,16 @@ class InvoiceNotifier extends AsyncNotifier<void> {
     final now = DateTime.now();
     final dueDate = now.add(Duration(days: termsDays));
 
-    // Build line items from time entries, grouping same-day + same-rate
     final lineItems = <InvoiceLineItemsCompanion>[];
     var sortOrder = 0;
     final dateFmt = DateFormat.yMMMd();
 
-    // Group entries by (date string, hourly rate)
     final groups = <(String, double), List<TimeEntry>>{};
     for (final entry in wizard.selectedEntries) {
-      final (String, double) key = (dateFmt.format(entry.startTime), entry.hourlyRateSnapshot);
+      final key = (dateFmt.format(entry.startTime), entry.hourlyRateSnapshot);
       (groups[key] ??= []).add(entry);
     }
 
-    // Sort groups by earliest start time
     final sortedKeys = groups.keys.toList()
       ..sort((a, b) => groups[a]!.first.startTime
           .compareTo(groups[b]!.first.startTime));
@@ -278,7 +264,6 @@ class InvoiceNotifier extends AsyncNotifier<void> {
           .join('; ');
       final desc = '$dateStr | $descriptions';
 
-      // Aggregate unique issue references from all entries in this group
       final issueRefs = entries
           .map((e) => e.issueReference)
           .whereType<String>()
@@ -286,17 +271,16 @@ class InvoiceNotifier extends AsyncNotifier<void> {
           .toSet()
           .join(', ');
 
-      // Use shared project if all entries are the same, otherwise null
       final projectIds = entries.map((e) => e.projectId).toSet();
       final sharedProject =
           projectIds.length == 1 ? projectIds.first : null;
 
-      lineItems.add(InvoiceLineItemsCompanion.insert(
-        invoiceId: 0, // will be set by DAO
-        description: desc,
-        quantity: totalHours,
-        unitPrice: rate,
-        total: totalHours * rate,
+      lineItems.add(InvoiceLineItemsCompanion(
+        invoiceId: const Value(''), // overwritten by repo
+        description: Value(desc),
+        quantity: Value(totalHours),
+        unitPrice: Value(rate),
+        total: Value(totalHours * rate),
         sortOrder: Value(sortOrder++),
         projectId: Value(sharedProject),
         issueReference: Value(issueRefs.isEmpty ? null : issueRefs),
@@ -304,27 +288,24 @@ class InvoiceNotifier extends AsyncNotifier<void> {
     }
 
     for (final manual in wizard.manualLineItems) {
-      lineItems.add(InvoiceLineItemsCompanion.insert(
-        invoiceId: 0,
-        description: manual.description,
-        quantity: manual.quantity,
-        unitPrice: manual.unitPrice,
-        total: manual.total,
+      lineItems.add(InvoiceLineItemsCompanion(
+        invoiceId: const Value(''), // overwritten by repo
+        description: Value(manual.description),
+        quantity: Value(manual.quantity),
+        unitPrice: Value(manual.unitPrice),
+        total: Value(manual.total),
         sortOrder: Value(sortOrder++),
       ));
     }
 
-    // Only store templateId if the user explicitly chose one in the wizard.
-    // Otherwise leave null so the PDF provider resolves it at render time
-    // using the cascade: invoice -> client -> profile -> default.
     final templateId = wizard.templateId;
 
     final invoiceId = await _invoiceDao.createInvoice(
-      invoice: InvoicesCompanion.insert(
-        clientId: wizard.clientId!,
-        invoiceNumber: invoiceNumber,
-        issueDate: now,
-        dueDate: dueDate,
+      invoice: InvoicesCompanion(
+        clientId: Value(wizard.clientId!),
+        invoiceNumber: Value(invoiceNumber),
+        issueDate: Value(now),
+        dueDate: Value(dueDate),
         periodStart: Value(periodStart),
         periodEnd: Value(periodEnd),
         subtotal: Value(subtotal),
@@ -340,7 +321,6 @@ class InvoiceNotifier extends AsyncNotifier<void> {
       timeEntryIds: wizard.selectedEntries.map((e) => e.id).toList(),
     );
 
-    // Reset wizard & invalidate dependent providers
     ref.read(invoiceWizardProvider.notifier).reset();
     ref.invalidate(allInvoicesProvider);
     ref.invalidate(uninvoicedByClientProvider);
@@ -349,8 +329,7 @@ class InvoiceNotifier extends AsyncNotifier<void> {
     return invoiceId;
   }
 
-  /// Update invoice status (draft -> sent -> paid / overdue / cancelled).
-  Future<void> updateStatus(int invoiceId, String status) async {
+  Future<void> updateStatus(String invoiceId, String status) async {
     await _invoiceDao.updateStatus(invoiceId, status);
     ref.invalidate(allInvoicesProvider);
     ref.invalidate(invoiceDetailProvider(invoiceId));
@@ -359,9 +338,8 @@ class InvoiceNotifier extends AsyncNotifier<void> {
     ref.invalidate(monthlyIncomeProvider);
   }
 
-  /// Record a payment on an invoice.
   Future<void> recordPayment({
-    required int invoiceId,
+    required String invoiceId,
     required double amount,
     required String method,
   }) async {
@@ -377,31 +355,27 @@ class InvoiceNotifier extends AsyncNotifier<void> {
     ref.invalidate(monthlyIncomeProvider);
   }
 
-  /// Delete a draft invoice.
-  Future<void> deleteDraft(int invoiceId) async {
+  Future<void> deleteDraft(String invoiceId) async {
     await _invoiceDao.deleteDraftInvoice(invoiceId);
     ref.invalidate(allInvoicesProvider);
     ref.invalidate(uninvoicedByClientProvider);
   }
 
-  /// Archive a paid invoice.
-  Future<void> archiveInvoice(int invoiceId) async {
+  Future<void> archiveInvoice(String invoiceId) async {
     await _invoiceDao.archiveInvoice(invoiceId);
     ref.invalidate(allInvoicesProvider);
     ref.invalidate(invoiceDetailProvider(invoiceId));
   }
 
-  /// Unarchive an invoice.
-  Future<void> unarchiveInvoice(int invoiceId) async {
+  Future<void> unarchiveInvoice(String invoiceId) async {
     await _invoiceDao.unarchiveInvoice(invoiceId);
     ref.invalidate(allInvoicesProvider);
     ref.invalidate(invoiceDetailProvider(invoiceId));
   }
 
-  /// Update all editable fields of a draft invoice.
   Future<void> updateDraftInvoice({
-    required int invoiceId,
-    required int clientId,
+    required String invoiceId,
+    required String clientId,
     required String invoiceNumber,
     required DateTime issueDate,
     required DateTime dueDate,
@@ -427,18 +401,14 @@ class InvoiceNotifier extends AsyncNotifier<void> {
     ref.invalidate(invoiceDetailProvider(invoiceId));
   }
 
-  /// Persist the user's chosen PDF template so the email/share flow uses
-  /// the same style that was previewed.
-  Future<void> setInvoiceTemplate(int invoiceId, int? templateId) async {
+  Future<void> setInvoiceTemplate(String invoiceId, String? templateId) async {
     await _invoiceDao.updateTemplate(invoiceId, templateId);
     ref.invalidate(invoiceDetailProvider(invoiceId));
     ref.invalidate(allInvoicesProvider);
   }
 
-  /// Append additional time entries to an existing draft invoice, grouping
-  /// by (date, hourly rate) the same way createInvoice does.
   Future<void> addEntriesToInvoice({
-    required int invoiceId,
+    required String invoiceId,
     required List<TimeEntry> entries,
   }) async {
     if (entries.isEmpty) return;
@@ -479,12 +449,12 @@ class InvoiceNotifier extends AsyncNotifier<void> {
       final sharedProject =
           projectIds.length == 1 ? projectIds.first : null;
 
-      lineItems.add(InvoiceLineItemsCompanion.insert(
-        invoiceId: 0, // overwritten by DAO
-        description: desc,
-        quantity: totalHours,
-        unitPrice: rate,
-        total: totalHours * rate,
+      lineItems.add(InvoiceLineItemsCompanion(
+        invoiceId: const Value(''), // overwritten by repo
+        description: Value(desc),
+        quantity: Value(totalHours),
+        unitPrice: Value(rate),
+        total: Value(totalHours * rate),
         projectId: Value(sharedProject),
         issueReference: Value(issueRefs.isEmpty ? null : issueRefs),
       ));
@@ -503,17 +473,15 @@ class InvoiceNotifier extends AsyncNotifier<void> {
     ref.invalidate(monthlyIncomeProvider);
   }
 
-  /// Rename an invoice number.
-  Future<void> updateInvoiceNumber(int invoiceId, String invoiceNumber) async {
+  Future<void> updateInvoiceNumber(String invoiceId, String invoiceNumber) async {
     await _invoiceDao.updateInvoiceNumber(invoiceId, invoiceNumber);
     ref.invalidate(allInvoicesProvider);
     ref.invalidate(invoiceDetailProvider(invoiceId));
   }
 
-  /// Edit a single line item and recalculate invoice totals.
   Future<void> editLineItem({
-    required int lineItemId,
-    required int invoiceId,
+    required String lineItemId,
+    required String invoiceId,
     required String description,
     required double quantity,
     required double unitPrice,
@@ -531,8 +499,7 @@ class InvoiceNotifier extends AsyncNotifier<void> {
     ref.invalidate(monthlyIncomeProvider);
   }
 
-  /// Revert a sent invoice back to draft so it can be edited / resent.
-  Future<void> revertToDraft(int invoiceId) async {
+  Future<void> revertToDraft(String invoiceId) async {
     await _invoiceDao.revertToDraft(invoiceId);
     ref.invalidate(allInvoicesProvider);
     ref.invalidate(invoiceDetailProvider(invoiceId));
@@ -540,8 +507,7 @@ class InvoiceNotifier extends AsyncNotifier<void> {
     ref.invalidate(overdueInvoicesProvider);
   }
 
-  /// Permanently delete any invoice.
-  Future<void> deleteInvoice(int invoiceId) async {
+  Future<void> deleteInvoice(String invoiceId) async {
     await _invoiceDao.deleteInvoice(invoiceId);
     ref.invalidate(allInvoicesProvider);
     ref.invalidate(uninvoicedByClientProvider);

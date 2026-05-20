@@ -27,7 +27,7 @@ class _EditTimeEntryPageState extends ConsumerState<EditTimeEntryPage> {
   late DateTime _date;
   late TimeOfDay _startTime;
   late TimeOfDay _endTime;
-  int? _selectedProjectId;
+  String? _selectedProjectId;
   bool _saving = false;
 
   @override
@@ -297,18 +297,18 @@ class _EditTimeEntryPageState extends ConsumerState<EditTimeEntryPage> {
           projectsAsync.when(
             data: (projects) {
               if (projects.isEmpty) return const SizedBox.shrink();
-              return DropdownButtonFormField<int?>(
+              return DropdownButtonFormField<String?>(
                 // ignore: deprecated_member_use
                 value: projects.any((p) => p.id == _selectedProjectId)
                     ? _selectedProjectId
                     : null,
                 decoration: const InputDecoration(labelText: 'Project'),
                 items: [
-                  const DropdownMenuItem<int?>(
+                  const DropdownMenuItem<String?>(
                     value: null,
                     child: Text('None'),
                   ),
-                  ...projects.map((p) => DropdownMenuItem<int?>(
+                  ...projects.map((p) => DropdownMenuItem<String?>(
                         value: p.id,
                         child: Text(p.name),
                       )),

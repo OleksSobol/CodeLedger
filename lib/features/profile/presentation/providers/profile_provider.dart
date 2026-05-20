@@ -1,26 +1,22 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../../core/database/app_database.dart';
-import '../../../../core/database/daos/user_profile_dao.dart';
-import '../../../../core/providers/database_provider.dart';
 import 'package:drift/drift.dart';
-
-final userProfileDaoProvider = Provider<UserProfileDao>((ref) {
-  return UserProfileDao(ref.watch(databaseProvider));
-});
+import '../../../../core/database/app_database.dart';
+import '../../../../core/providers/repository_providers.dart';
+import '../../../../core/repositories/user_profile_repository.dart';
 
 final profileProvider = StreamProvider<UserProfile>((ref) {
-  return ref.watch(userProfileDaoProvider).watchProfile();
+  return ref.watch(userProfileRepositoryProvider).watchProfile();
 });
 
 final profileNotifierProvider =
     AsyncNotifierProvider<ProfileNotifier, UserProfile>(ProfileNotifier.new);
 
 class ProfileNotifier extends AsyncNotifier<UserProfile> {
-  late UserProfileDao _dao;
+  late UserProfileRepository _dao;
 
   @override
   Future<UserProfile> build() async {
-    _dao = ref.watch(userProfileDaoProvider);
+    _dao = ref.watch(userProfileRepositoryProvider);
     return _dao.getProfile();
   }
 
@@ -129,7 +125,7 @@ class ProfileNotifier extends AsyncNotifier<UserProfile> {
   Future<bool> updateInvoiceSettings({
     required String invoiceNumberPrefix,
     required String defaultEmailSubjectFormat,
-    int? defaultTemplateId,
+    String? defaultTemplateId,
     int? nextInvoiceNumber,
   }) {
     return updateProfile(UserProfilesCompanion(

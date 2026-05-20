@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import 'package:uuid/uuid.dart';
 import '../app_database.dart';
 import '../tables/invoices_table.dart';
 import '../tables/invoice_line_items_table.dart';
@@ -12,8 +13,7 @@ class InvoiceDao extends DatabaseAccessor<AppDatabase>
     with _$InvoiceDaoMixin {
   InvoiceDao(super.db);
 
-  /// Watch all invoices, optionally filtered by client.
-  Stream<List<Invoice>> watchInvoices({int? clientId}) {
+  Stream<List<Invoice>> watchInvoices({String? clientId}) {
     final query = select(invoices);
     if (clientId != null) {
       query.where((t) => t.clientId.equals(clientId));
@@ -22,42 +22,41 @@ class InvoiceDao extends DatabaseAccessor<AppDatabase>
     return query.watch();
   }
 
-  Future<Invoice> getInvoice(int id) {
+  Future<Invoice> getInvoice(String id) {
     return (select(invoices)..where((t) => t.id.equals(id))).getSingle();
   }
 
-  /// Get line items for an invoice.
-  Future<List<InvoiceLineItem>> getLineItems(int invoiceId) {
+  Future<List<InvoiceLineItem>> getLineItems(String invoiceId) {
     return (select(invoiceLineItems)
           ..where((t) => t.invoiceId.equals(invoiceId))
           ..orderBy([(t) => OrderingTerm.asc(t.sortOrder)]))
         .get();
   }
 
-  Stream<List<InvoiceLineItem>> watchLineItems(int invoiceId) {
+  Stream<List<InvoiceLineItem>> watchLineItems(String invoiceId) {
     return (select(invoiceLineItems)
           ..where((t) => t.invoiceId.equals(invoiceId))
           ..orderBy([(t) => OrderingTerm.asc(t.sortOrder)]))
         .watch();
   }
 
-  /// Create an invoice with line items in a transaction.
-  Future<int> createInvoice({
+  Future<String> createInvoice({
     required InvoicesCompanion invoice,
     required List<InvoiceLineItemsCompanion> lineItems,
-    required List<int> timeEntryIds,
+    required List<String> timeEntryIds,
   }) {
     return transaction(() async {
-      final invoiceId = await into(invoices).insert(invoice);
+      const uuid = Uuid();
+      final invoiceId = uuid.v4();
+      await into(invoices).insert(invoice.copyWith(id: Value(invoiceId)));
 
-      // Insert line items
       for (final item in lineItems) {
+        final lineItemId = uuid.v4();
         await into(invoiceLineItems).insert(
-          item.copyWith(invoiceId: Value(invoiceId)),
+          item.copyWith(id: Value(lineItemId), invoiceId: Value(invoiceId)),
         );
       }
 
-      // Mark time entries as invoiced
       if (timeEntryIds.isNotEmpty) {
         await (update(timeEntries)
               ..where((t) => t.id.isIn(timeEntryIds)))
@@ -72,14 +71,12 @@ class InvoiceDao extends DatabaseAccessor<AppDatabase>
     });
   }
 
-  /// Update invoice status.
-  Future<bool> updateStatus(int id, String status) {
+  Future<bool> updateStatus(String id, String status) {
     final companion = InvoicesCompanion(
       status: Value(status),
       updatedAt: Value(DateTime.now()),
     );
 
-    // Auto-set sent_date when marking as sent
     if (status == 'sent') {
       return (update(invoices)..where((t) => t.id.equals(id)))
           .write(companion.copyWith(sentDate: Value(DateTime.now())))
@@ -91,9 +88,8 @@ class InvoiceDao extends DatabaseAccessor<AppDatabase>
         .then((rows) => rows > 0);
   }
 
-  /// Record a payment.
   Future<bool> recordPayment({
-    required int invoiceId,
+    required String invoiceId,
     required double amount,
     required String method,
   }) {
@@ -114,10 +110,8 @@ class InvoiceDao extends DatabaseAccessor<AppDatabase>
     });
   }
 
-  /// Delete a draft invoice and unmark its time entries.
-  Future<void> deleteDraftInvoice(int invoiceId) {
+  Future<void> deleteDraftInvoice(String invoiceId) {
     return transaction(() async {
-      // Unmark time entries
       await (update(timeEntries)
             ..where((t) => t.invoiceId.equals(invoiceId)))
           .write(const TimeEntriesCompanion(
@@ -125,18 +119,15 @@ class InvoiceDao extends DatabaseAccessor<AppDatabase>
             invoiceId: Value(null),
           ));
 
-      // Delete line items (cascade should handle this, but explicit is safer)
       await (delete(invoiceLineItems)
             ..where((t) => t.invoiceId.equals(invoiceId)))
           .go();
 
-      // Delete invoice
       await (delete(invoices)..where((t) => t.id.equals(invoiceId))).go();
     });
   }
 
-  /// Archive a paid/cancelled invoice (keeps data, hides from default list).
-  Future<bool> archiveInvoice(int invoiceId) {
+  Future<bool> archiveInvoice(String invoiceId) {
     return (update(invoices)..where((t) => t.id.equals(invoiceId)))
         .write(InvoicesCompanion(
           status: const Value('archived'),
@@ -145,8 +136,7 @@ class InvoiceDao extends DatabaseAccessor<AppDatabase>
         .then((rows) => rows > 0);
   }
 
-  /// Unarchive an invoice back to its paid status.
-  Future<bool> unarchiveInvoice(int invoiceId) {
+  Future<bool> unarchiveInvoice(String invoiceId) {
     return (update(invoices)..where((t) => t.id.equals(invoiceId)))
         .write(InvoicesCompanion(
           status: const Value('paid'),
@@ -155,10 +145,8 @@ class InvoiceDao extends DatabaseAccessor<AppDatabase>
         .then((rows) => rows > 0);
   }
 
-  /// Permanently delete any invoice and unmark its time entries.
-  Future<void> deleteInvoice(int invoiceId) {
+  Future<void> deleteInvoice(String invoiceId) {
     return transaction(() async {
-      // Unmark time entries
       await (update(timeEntries)
             ..where((t) => t.invoiceId.equals(invoiceId)))
           .write(const TimeEntriesCompanion(
@@ -166,24 +154,21 @@ class InvoiceDao extends DatabaseAccessor<AppDatabase>
             invoiceId: Value(null),
           ));
 
-      // Delete line items
       await (delete(invoiceLineItems)
             ..where((t) => t.invoiceId.equals(invoiceId)))
           .go();
 
-      // Delete invoice
       await (delete(invoices)..where((t) => t.id.equals(invoiceId))).go();
     });
   }
 
-  /// Append more line items (and their backing time entries) to an existing
-  /// invoice, then recompute totals in one transaction.
   Future<void> appendLineItems({
-    required int invoiceId,
+    required String invoiceId,
     required List<InvoiceLineItemsCompanion> lineItems,
-    required List<int> timeEntryIds,
+    required List<String> timeEntryIds,
   }) {
     return transaction(() async {
+      const uuid = Uuid();
       final existing = await getLineItems(invoiceId);
       var sortOrder = existing.isEmpty
           ? 0
@@ -193,8 +178,10 @@ class InvoiceDao extends DatabaseAccessor<AppDatabase>
               1);
 
       for (final item in lineItems) {
+        final lineItemId = uuid.v4();
         await into(invoiceLineItems).insert(
           item.copyWith(
+            id: Value(lineItemId),
             invoiceId: Value(invoiceId),
             sortOrder: Value(sortOrder++),
           ),
@@ -211,14 +198,12 @@ class InvoiceDao extends DatabaseAccessor<AppDatabase>
         ));
       }
 
-      // Recalculate totals from all line items.
       final items = await getLineItems(invoiceId);
       final subtotal = items.fold<double>(0, (sum, i) => sum + i.total);
       final inv = await getInvoice(invoiceId);
       final taxAmount = subtotal * (inv.taxRate / 100);
       final total = subtotal + taxAmount + inv.lateFeeAmount;
 
-      // Extend the period to cover any new entries' dates.
       DateTime? periodStart = inv.periodStart;
       DateTime? periodEnd = inv.periodEnd;
       if (timeEntryIds.isNotEmpty) {
@@ -249,10 +234,9 @@ class InvoiceDao extends DatabaseAccessor<AppDatabase>
     });
   }
 
-  /// Update a single line item and recalculate invoice totals in a transaction.
   Future<void> updateLineItem({
-    required int lineItemId,
-    required int invoiceId,
+    required String lineItemId,
+    required String invoiceId,
     required String description,
     required double quantity,
     required double unitPrice,
@@ -260,7 +244,6 @@ class InvoiceDao extends DatabaseAccessor<AppDatabase>
     return transaction(() async {
       final itemTotal = quantity * unitPrice;
 
-      // Update line item
       await (update(invoiceLineItems)
             ..where((t) => t.id.equals(lineItemId)))
           .write(InvoiceLineItemsCompanion(
@@ -270,7 +253,6 @@ class InvoiceDao extends DatabaseAccessor<AppDatabase>
         total: Value(itemTotal),
       ));
 
-      // Recalculate invoice totals from all line items
       final items = await getLineItems(invoiceId);
       final subtotal = items.fold<double>(0, (sum, i) => sum + i.total);
       final inv = await getInvoice(invoiceId);
@@ -287,8 +269,7 @@ class InvoiceDao extends DatabaseAccessor<AppDatabase>
     });
   }
 
-  /// Revert a sent invoice back to draft status.
-  Future<bool> revertToDraft(int invoiceId) {
+  Future<bool> revertToDraft(String invoiceId) {
     return (update(invoices)..where((t) => t.id.equals(invoiceId)))
         .write(InvoicesCompanion(
           status: const Value('draft'),
@@ -298,7 +279,6 @@ class InvoiceDao extends DatabaseAccessor<AppDatabase>
         .then((rows) => rows > 0);
   }
 
-  /// Get invoices by status (for dashboard).
   Future<List<Invoice>> getByStatus(String status) {
     return (select(invoices)
           ..where((t) => t.status.equals(status))
@@ -306,7 +286,6 @@ class InvoiceDao extends DatabaseAccessor<AppDatabase>
         .get();
   }
 
-  /// Get overdue invoices (sent + past due date).
   Future<List<Invoice>> getOverdueInvoices() {
     return (select(invoices)
           ..where((t) =>
@@ -315,8 +294,7 @@ class InvoiceDao extends DatabaseAccessor<AppDatabase>
         .get();
   }
 
-  /// Update invoice number.
-  Future<bool> updateInvoiceNumber(int invoiceId, String invoiceNumber) {
+  Future<bool> updateInvoiceNumber(String invoiceId, String invoiceNumber) {
     return (update(invoices)..where((t) => t.id.equals(invoiceId)))
         .write(InvoicesCompanion(
           invoiceNumber: Value(invoiceNumber),
@@ -325,10 +303,9 @@ class InvoiceDao extends DatabaseAccessor<AppDatabase>
         .then((rows) => rows > 0);
   }
 
-  /// Update all editable fields of a draft invoice and recalculate totals.
   Future<bool> updateDraftInvoice({
-    required int invoiceId,
-    required int clientId,
+    required String invoiceId,
+    required String clientId,
     required String invoiceNumber,
     required DateTime issueDate,
     required DateTime dueDate,
@@ -359,8 +336,7 @@ class InvoiceDao extends DatabaseAccessor<AppDatabase>
         .then((rows) => rows > 0);
   }
 
-  /// Set or clear the invoice's chosen PDF template.
-  Future<bool> updateTemplate(int invoiceId, int? templateId) {
+  Future<bool> updateTemplate(String invoiceId, String? templateId) {
     return (update(invoices)..where((t) => t.id.equals(invoiceId)))
         .write(InvoicesCompanion(
           templateId: Value(templateId),
@@ -369,8 +345,7 @@ class InvoiceDao extends DatabaseAccessor<AppDatabase>
         .then((rows) => rows > 0);
   }
 
-  /// Update invoice PDF path.
-  Future<bool> updatePdfPath(int invoiceId, String path) {
+  Future<bool> updatePdfPath(String invoiceId, String path) {
     return (update(invoices)..where((t) => t.id.equals(invoiceId)))
         .write(InvoicesCompanion(
           pdfPath: Value(path),
@@ -378,9 +353,9 @@ class InvoiceDao extends DatabaseAccessor<AppDatabase>
         ))
         .then((rows) => rows > 0);
   }
-  /// Get line items with their associated time entry details (if any).
+
   Future<List<LineItemWithDetails>> getLineItemsWithDetails(
-      int invoiceId) async {
+      String invoiceId) async {
     final query = select(invoiceLineItems).join([
       leftOuterJoin(timeEntries,
           timeEntries.id.equalsExp(invoiceLineItems.timeEntryId)),

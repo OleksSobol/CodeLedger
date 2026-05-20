@@ -1,35 +1,24 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:drift/drift.dart';
 import '../../../../core/database/app_database.dart';
-import '../../../../core/database/daos/time_entry_dao.dart';
-import '../../../../core/providers/database_provider.dart';
 import '../../../../core/providers/multi_timer_provider.dart';
+import '../../../../core/providers/repository_providers.dart';
+import '../../../../core/repositories/time_entry_repository.dart';
 import '../../../../core/utils/rate_resolver.dart';
 import '../../../../core/utils/tag_utils.dart';
-import '../../../profile/presentation/providers/profile_provider.dart';
-import '../../../clients/presentation/providers/client_providers.dart';
-import '../../../projects/presentation/providers/project_providers.dart';
 
-final timeEntryDaoProvider = Provider<TimeEntryDao>((ref) {
-  return TimeEntryDao(ref.watch(databaseProvider));
-});
-
-/// Watches the currently running timer entry (null if none).
 final runningEntryProvider = StreamProvider<TimeEntry?>((ref) {
-  return ref.watch(timeEntryDaoProvider).watchRunningEntry();
+  return ref.watch(timeEntryRepositoryProvider).watchRunningEntry();
 });
 
-/// Watches ALL currently running timer entries (empty list if none).
 final runningEntriesProvider = StreamProvider<List<TimeEntry>>((ref) {
-  return ref.watch(timeEntryDaoProvider).watchAllRunningEntries();
+  return ref.watch(timeEntryRepositoryProvider).watchAllRunningEntries();
 });
 
-/// Most recent completed entry (for quick clock-in repeat).
 final lastCompletedEntryProvider = FutureProvider<TimeEntry?>((ref) {
-  return ref.watch(timeEntryDaoProvider).getMostRecentCompleted();
+  return ref.watch(timeEntryRepositoryProvider).getMostRecentCompleted();
 });
 
-/// Date range filter state for the entries list.
 class DateRangeFilter {
   final DateTime start;
   final DateTime end;
@@ -44,7 +33,7 @@ class DateRangeFilter {
 
   factory DateRangeFilter.thisWeek() {
     final now = DateTime.now();
-    final weekday = now.weekday; // Mon=1 .. Sun=7
+    final weekday = now.weekday;
     final start = DateTime(now.year, now.month, now.day - (weekday - 1));
     return DateRangeFilter(start: start, end: start.add(const Duration(days: 7)));
   }
@@ -73,33 +62,29 @@ class TagFilterNotifier extends Notifier<Set<String>> {
   void set(Set<String> v) => state = v;
 }
 
-/// Active tag filter — entries must contain ALL selected tags.
 final tagFilterProvider =
     NotifierProvider<TagFilterNotifier, Set<String>>(TagFilterNotifier.new);
 
-/// All unique tags used across all time entries.
 final allTagsProvider = FutureProvider<Set<String>>((ref) {
-  return ref.watch(timeEntryDaoProvider).getAllTags();
+  return ref.watch(timeEntryRepositoryProvider).getAllTags();
 });
 
-class ClientIdFilterNotifier extends Notifier<Set<int>> {
+class ClientIdFilterNotifier extends Notifier<Set<String>> {
   @override
-  Set<int> build() => {};
-  void set(Set<int> v) => state = v;
+  Set<String> build() => {};
+  void set(Set<String> v) => state = v;
 }
 
-/// Active company filter — entries must belong to one of the selected client IDs.
 final clientIdFilterProvider =
-    NotifierProvider<ClientIdFilterNotifier, Set<int>>(
+    NotifierProvider<ClientIdFilterNotifier, Set<String>>(
         ClientIdFilterNotifier.new);
 
-/// Watch entries for the selected date range, filtered by selected tags and companies.
 final filteredEntriesProvider = StreamProvider<List<TimeEntry>>((ref) {
   final filter = ref.watch(dateRangeFilterProvider);
   final tagFilter = ref.watch(tagFilterProvider);
   final clientFilter = ref.watch(clientIdFilterProvider);
   return ref
-      .watch(timeEntryDaoProvider)
+      .watch(timeEntryRepositoryProvider)
       .watchEntriesForDateRange(filter.start, filter.end)
       .map((entries) {
     var result = entries;
@@ -117,22 +102,20 @@ final filteredEntriesProvider = StreamProvider<List<TimeEntry>>((ref) {
   });
 });
 
-/// Timer notifier — handles clock in, clock out, manual entry.
 final timerNotifierProvider =
     AsyncNotifierProvider<TimerNotifier, void>(TimerNotifier.new);
 
 class TimerNotifier extends AsyncNotifier<void> {
-  late TimeEntryDao _dao;
+  late TimeEntryRepository _dao;
 
   @override
   Future<void> build() async {
-    _dao = ref.watch(timeEntryDaoProvider);
+    _dao = ref.watch(timeEntryRepositoryProvider);
   }
 
-  /// Clock in: start a new running timer.
-  Future<int> clockIn({
-    required int clientId,
-    int? projectId,
+  Future<String> clockIn({
+    required String clientId,
+    String? projectId,
     String? description,
     String? issueReference,
     String? repository,
@@ -151,15 +134,14 @@ class TimerNotifier extends AsyncNotifier<void> {
       throw Exception('A timer for this company is already running.');
     }
 
-    // Resolve the hourly rate
-    final profile = await ref.read(userProfileDaoProvider).getProfile();
-    final clientDao = ref.read(clientDaoProvider);
-    final client = await clientDao.getClient(clientId);
+    final profile = await ref.read(userProfileRepositoryProvider).getProfile();
+    final client =
+        await ref.read(clientRepositoryProvider).getClient(clientId);
 
     double? projectRate;
     if (projectId != null) {
-      final projectDao = ref.read(projectDaoProvider);
-      final project = await projectDao.getProject(projectId);
+      final project =
+          await ref.read(projectRepositoryProvider).getProject(projectId);
       projectRate = project.hourlyRateOverride;
     }
 
@@ -170,11 +152,11 @@ class TimerNotifier extends AsyncNotifier<void> {
     );
 
     final id = await _dao.insertWithOverlapCheck(
-      TimeEntriesCompanion.insert(
-        clientId: clientId,
+      TimeEntriesCompanion(
+        clientId: Value(clientId),
         projectId: Value(projectId),
-        startTime: DateTime.now(),
-        hourlyRateSnapshot: rate,
+        startTime: Value(DateTime.now()),
+        hourlyRateSnapshot: Value(rate),
         description: Value(description),
         issueReference: Value(issueReference),
         repository: Value(repository),
@@ -184,9 +166,8 @@ class TimerNotifier extends AsyncNotifier<void> {
     return id;
   }
 
-  /// Clock out the running entry.
   Future<bool> clockOut(
-    int entryId, {
+    String entryId, {
     String? description,
     bool truncateOverlaps = false,
   }) {
@@ -197,12 +178,11 @@ class TimerNotifier extends AsyncNotifier<void> {
     );
   }
 
-  /// Update a time entry's start/end times and details with overlap checking.
   Future<bool> updateEntryTimes({
-    required int entryId,
+    required String entryId,
     required DateTime startTime,
     required DateTime endTime,
-    int? projectId,
+    String? projectId,
     bool clearProject = false,
     String? description,
     String? issueReference,
@@ -217,7 +197,9 @@ class TimerNotifier extends AsyncNotifier<void> {
         startTime: Value(startTime),
         endTime: Value(endTime),
         durationMinutes: Value(duration),
-        projectId: clearProject ? const Value(null) : (projectId != null ? Value(projectId) : const Value.absent()),
+        projectId: clearProject
+            ? const Value(null)
+            : (projectId != null ? Value(projectId) : const Value.absent()),
         description: Value(description),
         issueReference: Value(issueReference),
         repository: Value(repository),
@@ -229,10 +211,9 @@ class TimerNotifier extends AsyncNotifier<void> {
     );
   }
 
-  /// Update only metadata on a running (or any) entry without touching times.
   Future<bool> updateEntryMeta({
-    required int entryId,
-    int? projectId,
+    required String entryId,
+    String? projectId,
     bool clearProject = false,
     String? description,
     String? issueReference,
@@ -243,7 +224,9 @@ class TimerNotifier extends AsyncNotifier<void> {
     return _dao.updateWithOverlapCheck(
       entryId,
       TimeEntriesCompanion(
-        projectId: clearProject ? const Value(null) : (projectId != null ? Value(projectId) : const Value.absent()),
+        projectId: clearProject
+            ? const Value(null)
+            : (projectId != null ? Value(projectId) : const Value.absent()),
         description: Value(description),
         issueReference: Value(issueReference),
         repository: Value(repository),
@@ -255,10 +238,9 @@ class TimerNotifier extends AsyncNotifier<void> {
     );
   }
 
-  /// Add a manual time entry (already has start + end).
-  Future<int> addManualEntry({
-    required int clientId,
-    int? projectId,
+  Future<String> addManualEntry({
+    required String clientId,
+    String? projectId,
     required DateTime startTime,
     required DateTime endTime,
     String? description,
@@ -266,14 +248,14 @@ class TimerNotifier extends AsyncNotifier<void> {
     String? repository,
     String? tags,
   }) async {
-    final profile = await ref.read(userProfileDaoProvider).getProfile();
-    final clientDao = ref.read(clientDaoProvider);
-    final client = await clientDao.getClient(clientId);
+    final profile = await ref.read(userProfileRepositoryProvider).getProfile();
+    final client =
+        await ref.read(clientRepositoryProvider).getClient(clientId);
 
     double? projectRate;
     if (projectId != null) {
-      final projectDao = ref.read(projectDaoProvider);
-      final project = await projectDao.getProject(projectId);
+      final project =
+          await ref.read(projectRepositoryProvider).getProject(projectId);
       projectRate = project.hourlyRateOverride;
     }
 
@@ -286,13 +268,13 @@ class TimerNotifier extends AsyncNotifier<void> {
     final duration = endTime.difference(startTime).inMinutes;
 
     return _dao.insertWithOverlapCheck(
-      TimeEntriesCompanion.insert(
-        clientId: clientId,
+      TimeEntriesCompanion(
+        clientId: Value(clientId),
         projectId: Value(projectId),
-        startTime: startTime,
+        startTime: Value(startTime),
         endTime: Value(endTime),
         durationMinutes: Value(duration),
-        hourlyRateSnapshot: rate,
+        hourlyRateSnapshot: Value(rate),
         isManual: const Value(true),
         description: Value(description),
         issueReference: Value(issueReference),
@@ -302,17 +284,9 @@ class TimerNotifier extends AsyncNotifier<void> {
     );
   }
 
-  /// Delete a time entry (only non-invoiced).
-  Future<void> deleteEntry(int entryId) async {
-    final db = ref.read(databaseProvider);
-    await (db.delete(db.timeEntries)..where((t) => t.id.equals(entryId))).go();
-  }
+  Future<void> deleteEntry(String entryId) => _dao.deleteEntry(entryId);
 
-  /// Update a time entry's description/details.
-  Future<bool> updateEntry(int entryId, TimeEntriesCompanion companion) async {
-    final db = ref.read(databaseProvider);
-    return (db.update(db.timeEntries)..where((t) => t.id.equals(entryId)))
-        .write(companion.copyWith(updatedAt: Value(DateTime.now())))
-        .then((rows) => rows > 0);
-  }
+  Future<bool> updateEntry(
+          String entryId, TimeEntriesCompanion companion) =>
+      _dao.updateEntry(entryId, companion);
 }

@@ -2,7 +2,7 @@ import 'package:drift/drift.dart';
 import 'invoice_templates_table.dart';
 
 class UserProfiles extends Table {
-  IntColumn get id => integer().autoIncrement()();
+  TextColumn get id => text()();
   TextColumn get businessName => text().withDefault(const Constant(''))();
   TextColumn get ownerName => text().withDefault(const Constant(''))();
   TextColumn get email => text().nullable()();
@@ -57,8 +57,8 @@ class UserProfiles extends Table {
   IntColumn get defaultPaymentTermsDays =>
       integer().withDefault(const Constant(30))();
   RealColumn get lateFeePercentage => real().nullable()();
-  IntColumn get defaultTemplateId =>
-      integer().nullable().references(InvoiceTemplates, #id)();
+  TextColumn get defaultTemplateId =>
+      text().nullable().references(InvoiceTemplates, #id)();
   TextColumn get defaultEmailSubjectFormat => text()
       .withDefault(const Constant('Invoice #{number} - {period}'))();
 
@@ -73,4 +73,7 @@ class UserProfiles extends Table {
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt =>
       dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
 }

@@ -3,8 +3,8 @@ import 'clients_table.dart';
 import 'invoice_templates_table.dart';
 
 class Invoices extends Table {
-  IntColumn get id => integer().autoIncrement()();
-  IntColumn get clientId => integer().references(Clients, #id)();
+  TextColumn get id => text()();
+  TextColumn get clientId => text().references(Clients, #id)();
   TextColumn get invoiceNumber => text().unique()();
   TextColumn get status => text().withDefault(const Constant('draft'))();
   DateTimeColumn get issueDate => dateTime()();
@@ -20,8 +20,8 @@ class Invoices extends Table {
   RealColumn get amountPaid => real().withDefault(const Constant(0.0))();
   TextColumn get currency => text().withDefault(const Constant('USD'))();
   TextColumn get notes => text().nullable()();
-  IntColumn get templateId =>
-      integer().nullable().references(InvoiceTemplates, #id)();
+  TextColumn get templateId =>
+      text().nullable().references(InvoiceTemplates, #id)();
   TextColumn get templateType =>
       text().withDefault(const Constant('detailed'))();
   TextColumn get pdfPath => text().nullable()();
@@ -32,4 +32,7 @@ class Invoices extends Table {
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt =>
       dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
 }

@@ -4,7 +4,7 @@ import '../../../../core/database/app_database.dart';
 
 class ProjectListTile extends StatelessWidget {
   final Project project;
-  final int clientId;
+  final String clientId;
 
   const ProjectListTile({
     super.key,

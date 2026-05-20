@@ -1,9 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:drift/drift.dart';
 import '../../../../core/providers/theme_provider.dart';
+import '../../../../core/providers/repository_providers.dart';
 import '../../../../core/database/app_database.dart';
-import '../../../../features/clients/presentation/providers/client_providers.dart';
-import '../../../../features/projects/presentation/providers/project_providers.dart';
 import '../../../../features/time_tracking/presentation/providers/time_entry_providers.dart';
 import '../../data/github_service.dart';
 
@@ -110,7 +109,7 @@ class GitHubSyncNotifier extends AsyncNotifier<void> {
     final service = GitHubService(pat: pat, username: username, onLog: onLog);
 
     final allProjects =
-        await ref.read(projectDaoProvider).watchAllActiveProjects().first;
+        await ref.read(projectRepositoryProvider).watchAllActiveProjects().first;
     final linkedProjects = allProjects
         .where((p) => p.githubRepo != null && p.githubRepo!.isNotEmpty)
         .toList();
@@ -123,7 +122,7 @@ class GitHubSyncNotifier extends AsyncNotifier<void> {
     }
     emit('Loading clients…');
 
-    final allClients = await ref.read(clientDaoProvider).watchAllClients().first;
+    final allClients = await ref.read(clientRepositoryProvider).watchAllClients().first;
     final clientById = {for (final c in allClients) c.id: c.name};
 
     // Cap end at today — never scan future dates.
@@ -154,9 +153,9 @@ class GitHubSyncNotifier extends AsyncNotifier<void> {
 
     // Fetch all entries in range in one DB call.
     emit('Loading time entries…');
-    final timeEntryDao = ref.read(timeEntryDaoProvider);
+    final timeEntryRepo = ref.read(timeEntryRepositoryProvider);
     final allEntries =
-        await timeEntryDao.getAllEntries(from: scanStart, to: scanEnd);
+        await timeEntryRepo.getAllEntries(from: scanStart, to: scanEnd);
 
     if (allEntries.isEmpty) {
       emit('No time entries in range.');
@@ -251,9 +250,9 @@ class GitHubSyncNotifier extends AsyncNotifier<void> {
   /// Applies the selected matches, writing issue refs to time entries.
   /// Returns the number of entries updated.
   Future<int> applyMatches(List<SyncMatch> selected) async {
-    final timeEntryDao = ref.read(timeEntryDaoProvider);
+    final timeEntryDao = ref.read(timeEntryRepositoryProvider);
     // Track accumulated refs per entry so multiple matches on the same entry stack correctly.
-    final accumulatedRefs = <int, String>{};
+    final accumulatedRefs = <String, String>{};
     int count = 0;
 
     for (final match in selected) {
@@ -299,7 +298,7 @@ class GitHubSyncNotifier extends AsyncNotifier<void> {
     final repoResults = <String, bool>{};
     if (patError == null) {
       final allProjects =
-          await ref.read(projectDaoProvider).watchAllActiveProjects().first;
+          await ref.read(projectRepositoryProvider).watchAllActiveProjects().first;
       final linkedRepos = allProjects
           .where((p) => p.githubRepo != null && p.githubRepo!.isNotEmpty)
           .map((p) => GitHubService.normalizeRepo(p.githubRepo!))

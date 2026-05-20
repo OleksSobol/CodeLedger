@@ -7,11 +7,10 @@ import 'package:intl/intl.dart';
 import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../../core/database/app_database.dart';
+import '../../../../core/providers/repository_providers.dart';
 import '../../../clients/presentation/providers/client_providers.dart';
 import '../../../export/presentation/providers/export_providers.dart';
 import '../../../projects/presentation/providers/project_providers.dart';
-import '../../../profile/presentation/providers/profile_provider.dart';
-import '../../../time_tracking/presentation/providers/time_entry_providers.dart';
 import '../../../invoices/presentation/providers/invoice_providers.dart';
 import '../../data/models/tax_report_data.dart';
 import '../../data/models/work_report_data.dart';
@@ -28,8 +27,8 @@ class ReportsPage extends ConsumerStatefulWidget {
 
 class _ReportsPageState extends ConsumerState<ReportsPage> {
   DateTimeRange? _dateRange;
-  int? _selectedClientId;
-  int? _selectedProjectId;
+  String? _selectedClientId;
+  String? _selectedProjectId;
   bool _isLoading = false;
 
   // Timesheet column toggles
@@ -64,10 +63,10 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
     final start = _dateRange!.start;
     final end = _dateRange!.end.add(const Duration(days: 1));
 
-    final timeDao = ref.read(timeEntryDaoProvider);
-    final profileDao = ref.read(userProfileDaoProvider);
-    final clientDao = ref.read(clientDaoProvider);
-    final projectDao = ref.read(projectDaoProvider);
+    final timeDao = ref.read(timeEntryRepositoryProvider);
+    final profileDao = ref.read(userProfileRepositoryProvider);
+    final clientDao = ref.read(clientRepositoryProvider);
+    final projectDao = ref.read(projectRepositoryProvider);
 
     final profile = await profileDao.getProfile();
     final entries = await timeDao.getAllEntries(
@@ -87,8 +86,8 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
     }
 
     final projectIds =
-        entries.map((e) => e.projectId).whereType<int>().toSet();
-    final projectNames = <int, String>{};
+        entries.map((e) => e.projectId).whereType<String>().toSet();
+    final projectNames = <String, String>{};
     for (final pid in projectIds) {
       try {
         final p = await projectDao.getProject(pid);
@@ -165,8 +164,8 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
   Future<TaxReportData?> _fetchTaxReportData() async {
     if (_dateRange == null) return null;
 
-    final profileDao = ref.read(userProfileDaoProvider);
-    final clientDao = ref.read(clientDaoProvider);
+    final profileDao = ref.read(userProfileRepositoryProvider);
+    final clientDao = ref.read(clientRepositoryProvider);
     final profile = await profileDao.getProfile();
 
     final allInvoices = ref.read(allInvoicesProvider).value ?? [];
@@ -194,7 +193,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
     }).toList()
       ..sort((a, b) => a.issueDate.compareTo(b.issueDate));
 
-    final names = <int, String>{};
+    final names = <String, String>{};
     for (final inv in filtered) {
       if (!names.containsKey(inv.clientId)) {
         try {
@@ -284,9 +283,9 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
       final data = await _fetchData();
       if (data == null || !mounted) return;
 
-      final clientDao = ref.read(clientDaoProvider);
+      final clientDao = ref.read(clientRepositoryProvider);
       final clientIds = data.entries.map((e) => e.clientId).toSet();
-      final clientNames = <int, String>{};
+      final clientNames = <String, String>{};
       for (final cid in clientIds) {
         try {
           final c = await clientDao.getClient(cid);
@@ -367,7 +366,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                           border: OutlineInputBorder(),
                         ),
                         child: DropdownButtonHideUnderline(
-                          child: DropdownButton<int?>(
+                          child: DropdownButton<String?>(
                             value: _selectedClientId,
                             isDense: true,
                             items: [
@@ -404,7 +403,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                             border: OutlineInputBorder(),
                           ),
                           child: DropdownButtonHideUnderline(
-                            child: DropdownButton<int?>(
+                            child: DropdownButton<String?>(
                               value: _selectedProjectId,
                               isDense: true,
                               items: [

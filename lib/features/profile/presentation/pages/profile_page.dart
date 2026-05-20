@@ -1069,7 +1069,7 @@ class _InvoiceSettingsTileState extends ConsumerState<_InvoiceSettingsTile> {
   late final TextEditingController _prefix;
   late final TextEditingController _counter;
   late final TextEditingController _emailSubject;
-  int? _selectedTemplateId;
+  String? _selectedTemplateId;
 
   @override
   void initState() {
@@ -1168,14 +1168,14 @@ class _InvoiceSettingsTileState extends ConsumerState<_InvoiceSettingsTile> {
         templatesAsync.when(
           loading: () => const LinearProgressIndicator(),
           error: (_, _) => const SizedBox.shrink(),
-          data: (templates) => DropdownButtonFormField<int?>(
+          data: (templates) => DropdownButtonFormField<String?>(
             initialValue: _selectedTemplateId,
             decoration: const InputDecoration(
               labelText: 'Default Template',
               border: OutlineInputBorder(),
             ),
             items: templates
-                .map((t) => DropdownMenuItem<int?>(
+                .map((t) => DropdownMenuItem<String?>(
                       value: t.id,
                       child: Text(t.name),
                     ))

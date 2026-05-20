@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/database/app_database.dart';
+import '../../../../core/providers/repository_providers.dart';
 import '../../../../shared/widgets/spacing.dart';
 import '../providers/template_providers.dart';
 
@@ -70,7 +71,7 @@ class TemplateListPage extends ConsumerWidget {
         .duplicateTemplate(source, 'Custom Template');
 
     if (context.mounted) {
-      final dao = ref.read(invoiceTemplateDaoProvider);
+      final dao = ref.read(invoiceTemplateRepositoryProvider);
       final newTemplate = await dao.getById(id);
       if (newTemplate != null && context.mounted) {
         context.pushNamed('templateDesigner', extra: newTemplate);

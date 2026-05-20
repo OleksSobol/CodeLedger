@@ -36,7 +36,7 @@ class CompanyFilterBar extends ConsumerWidget {
                   selected: selectedIds.contains(client.id),
                   onSelected: (selected) {
                     final current =
-                        Set<int>.from(ref.read(clientIdFilterProvider));
+                        Set<String>.from(ref.read(clientIdFilterProvider));
                     selected
                         ? current.add(client.id)
                         : current.remove(client.id);

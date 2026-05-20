@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import 'package:uuid/uuid.dart';
 import '../app_database.dart';
 import '../tables/clients_table.dart';
 import '../tables/time_entries_table.dart';
@@ -11,7 +12,6 @@ class ClientDao extends DatabaseAccessor<AppDatabase>
     with _$ClientDaoMixin {
   ClientDao(super.db);
 
-  /// Watch all clients including archived.
   Stream<List<Client>> watchAllClients() {
     return (select(clients)
           ..orderBy([
@@ -21,7 +21,6 @@ class ClientDao extends DatabaseAccessor<AppDatabase>
         .watch();
   }
 
-  /// Watch all active (non-archived) clients.
   Stream<List<Client>> watchActiveClients() {
     return (select(clients)
           ..where((t) => t.isArchived.equals(false))
@@ -29,7 +28,6 @@ class ClientDao extends DatabaseAccessor<AppDatabase>
         .watch();
   }
 
-  /// Get all active clients.
   Future<List<Client>> getActiveClients() {
     return (select(clients)
           ..where((t) => t.isArchived.equals(false))
@@ -37,33 +35,31 @@ class ClientDao extends DatabaseAccessor<AppDatabase>
         .get();
   }
 
-  /// Get a single client by ID.
-  Future<Client> getClient(int id) {
+  Future<Client> getClient(String id) {
     return (select(clients)..where((t) => t.id.equals(id))).getSingle();
   }
 
-  /// Insert a new client.
-  Future<int> insertClient(ClientsCompanion companion) {
-    return into(clients).insert(companion);
+  Future<String> insertClient(ClientsCompanion companion) async {
+    const uuid = Uuid();
+    final id = uuid.v4();
+    await into(clients).insert(companion.copyWith(id: Value(id)));
+    return id;
   }
 
-  /// Update a client.
-  Future<bool> updateClient(int id, ClientsCompanion companion) {
+  Future<bool> updateClient(String id, ClientsCompanion companion) {
     return (update(clients)..where((t) => t.id.equals(id)))
         .write(companion.copyWith(updatedAt: Value(DateTime.now())))
         .then((rows) => rows > 0);
   }
 
-  /// Soft-archive a client.
-  Future<bool> archiveClient(int id) {
+  Future<bool> archiveClient(String id) {
     return updateClient(
       id,
       const ClientsCompanion(isArchived: Value(true)),
     );
   }
 
-  /// Check if a client has any time entries or invoices.
-  Future<bool> hasLinkedRecords(int clientId) async {
+  Future<bool> hasLinkedRecords(String clientId) async {
     final entryCount = await (select(timeEntries)
           ..where((t) => t.clientId.equals(clientId))
           ..limit(1))
@@ -76,13 +72,11 @@ class ClientDao extends DatabaseAccessor<AppDatabase>
     return invoiceCount.isNotEmpty;
   }
 
-  /// Delete a client (only if no linked records).
-  Future<int> deleteClient(int id) {
+  Future<int> deleteClient(String id) {
     return (delete(clients)..where((t) => t.id.equals(id))).go();
   }
 
-  /// Get uninvoiced hours for a client.
-  Future<double> getUninvoicedHours(int clientId) async {
+  Future<double> getUninvoicedHours(String clientId) async {
     final query = select(timeEntries)
       ..where((t) =>
           t.clientId.equals(clientId) &
@@ -93,16 +87,14 @@ class ClientDao extends DatabaseAccessor<AppDatabase>
         0, (sum, e) => sum + (e.durationMinutes ?? 0) / 60.0);
   }
 
-  /// Get total billed amount for a client.
-  Future<double> getTotalBilled(int clientId) async {
+  Future<double> getTotalBilled(String clientId) async {
     final query = select(invoices)
       ..where((t) => t.clientId.equals(clientId));
     final inv = await query.get();
     return inv.fold<double>(0, (sum, i) => sum + i.total);
   }
 
-  /// Get total paid amount for a client.
-  Future<double> getTotalPaid(int clientId) async {
+  Future<double> getTotalPaid(String clientId) async {
     final query = select(invoices)
       ..where((t) =>
           t.clientId.equals(clientId) & t.status.equals('paid'));

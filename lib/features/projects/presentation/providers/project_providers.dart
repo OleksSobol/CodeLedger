@@ -1,57 +1,51 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:drift/drift.dart';
 import '../../../../core/database/app_database.dart';
-import '../../../../core/database/daos/project_dao.dart';
-import '../../../../core/providers/database_provider.dart';
+import '../../../../core/providers/repository_providers.dart';
+import '../../../../core/repositories/project_repository.dart';
 
-final projectDaoProvider = Provider<ProjectDao>((ref) {
-  return ProjectDao(ref.watch(databaseProvider));
-});
-
-/// Watch all active projects across all clients.
 final allActiveProjectsProvider = StreamProvider<List<Project>>((ref) {
-  return ref.watch(projectDaoProvider).watchAllActiveProjects();
+  return ref.watch(projectRepositoryProvider).watchAllActiveProjects();
 });
 
-/// Watch active projects for a specific client.
 final projectsForClientProvider =
-    StreamProvider.family<List<Project>, int>((ref, clientId) {
-  return ref.watch(projectDaoProvider).watchProjectsForClient(clientId);
+    StreamProvider.family<List<Project>, String>((ref, clientId) {
+  return ref.watch(projectRepositoryProvider).watchProjectsForClient(clientId);
 });
 
 final projectNotifierProvider =
     AsyncNotifierProvider<ProjectNotifier, void>(ProjectNotifier.new);
 
 class ProjectNotifier extends AsyncNotifier<void> {
-  late ProjectDao _dao;
+  late ProjectRepository _dao;
 
   @override
   Future<void> build() async {
-    _dao = ref.watch(projectDaoProvider);
+    _dao = ref.watch(projectRepositoryProvider);
   }
 
-  Future<int> addProject({
-    required int clientId,
+  Future<String> addProject({
+    required String clientId,
     required String name,
     String? description,
     double? hourlyRateOverride,
     String? githubRepo,
     int color = 0xFF2196F3,
   }) async {
-    final id = await _dao.insertProject(ProjectsCompanion.insert(
-      clientId: clientId,
-      name: name,
+    final id = await _dao.insertProject(ProjectsCompanion(
+      clientId: Value(clientId),
+      name: Value(name),
       description: Value(description),
       hourlyRateOverride: Value(hourlyRateOverride),
       githubRepo: Value(githubRepo),
       color: Value(color),
     ));
-    // Invalidate the family provider for this client
     ref.invalidate(projectsForClientProvider(clientId));
     return id;
   }
 
-  Future<bool> updateProject(int id, int clientId, ProjectsCompanion companion) async {
+  Future<bool> updateProject(
+      String id, String clientId, ProjectsCompanion companion) async {
     final result = await _dao.updateProject(id, companion);
     if (result) {
       ref.invalidate(projectsForClientProvider(clientId));
@@ -59,7 +53,7 @@ class ProjectNotifier extends AsyncNotifier<void> {
     return result;
   }
 
-  Future<bool> archiveProject(int id, int clientId) async {
+  Future<bool> archiveProject(String id, String clientId) async {
     final result = await _dao.archiveProject(id);
     if (result) {
       ref.invalidate(projectsForClientProvider(clientId));

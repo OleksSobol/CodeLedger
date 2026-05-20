@@ -12,11 +12,11 @@ import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/database/app_database.dart';
+import '../../../../core/providers/repository_providers.dart';
 import '../../../../core/providers/theme_provider.dart';
 import '../../../clients/presentation/providers/client_providers.dart';
 import '../../../export/presentation/providers/export_providers.dart';
 import '../../../invoices/presentation/providers/invoice_providers.dart';
-import '../../../profile/presentation/providers/profile_provider.dart';
 import '../../data/models/tax_report_data.dart';
 import '../../data/templates/tax_report_template.dart';
 
@@ -91,7 +91,7 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
 
   // Shared date/client filter
   DateTimeRange? _dateRange;
-  int? _selectedClientId;
+  String? _selectedClientId;
   bool _includeArchived = false;
   bool _isLoading = false;
 
@@ -244,8 +244,8 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
   Future<TaxReportData?> _fetchTaxData() async {
     if (_dateRange == null) return null;
 
-    final profileDao = ref.read(userProfileDaoProvider);
-    final clientDao = ref.read(clientDaoProvider);
+    final profileDao = ref.read(userProfileRepositoryProvider);
+    final clientDao = ref.read(clientRepositoryProvider);
     final profile = await profileDao.getProfile();
 
     final allInvoices = ref.read(allInvoicesProvider).value ?? [];
@@ -270,7 +270,7 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
     }).toList()
       ..sort((a, b) => a.issueDate.compareTo(b.issueDate));
 
-    final names = <int, String>{};
+    final names = <String, String>{};
     for (final inv in filtered) {
       if (!names.containsKey(inv.clientId)) {
         try {
@@ -451,7 +451,7 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                       border: OutlineInputBorder(),
                     ),
                     child: DropdownButtonHideUnderline(
-                      child: DropdownButton<int?>(
+                      child: DropdownButton<String?>(
                         value: _selectedClientId,
                         isDense: true,
                         items: [

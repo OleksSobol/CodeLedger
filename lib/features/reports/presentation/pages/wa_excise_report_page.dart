@@ -5,8 +5,8 @@ import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
+import '../../../../core/providers/repository_providers.dart';
 import '../../../../core/providers/theme_provider.dart';
-import '../../../profile/presentation/providers/profile_provider.dart';
 import '../../../invoices/presentation/providers/invoice_providers.dart';
 
 // ── Submission model ───────────────────────────────────────────────────────────
@@ -186,7 +186,7 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
 
     // Fall back to profile taxId for TRA
     if ((tra == null || tra.isEmpty)) {
-      final profile = await ref.read(userProfileDaoProvider).getProfile();
+      final profile = await ref.read(userProfileRepositoryProvider).getProfile();
       if (profile.taxId != null && mounted) {
         _traCtrl.text = profile.taxId!;
       }
@@ -258,7 +258,7 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
   // ── DOR CSV generation ───────────────────────────────────────────────────────
 
   Future<String> _buildDorCsv() async {
-    final profile = await ref.read(userProfileDaoProvider).getProfile();
+    final profile = await ref.read(userProfileRepositoryProvider).getProfile();
     final tra = _traCtrl.text.trim();
     final period = _periodCode(_year, _quarter);
     final preparer = profile.ownerName.isNotEmpty ? profile.ownerName : '';

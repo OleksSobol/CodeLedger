@@ -1,7 +1,7 @@
 import 'package:drift/drift.dart';
 
 class InvoiceTemplates extends Table {
-  IntColumn get id => integer().autoIncrement()();
+  TextColumn get id => text()();
   TextColumn get name => text()();
   TextColumn get templateKey => text().unique()();
   TextColumn get description => text().nullable()();
@@ -42,4 +42,7 @@ class InvoiceTemplates extends Table {
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt =>
       dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
 }

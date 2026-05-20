@@ -1,6 +1,5 @@
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import '../../../../core/database/app_database.dart';
 import '../../../../core/utils/pdf_font_utils.dart';
 import 'base_invoice_template.dart';
 import '../models/pdf_invoice_data.dart';

@@ -1,26 +1,22 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pdf/widgets.dart' as pw;
 import '../../../../core/database/app_database.dart';
-import '../../../invoices/presentation/providers/template_providers.dart';
-import '../../../clients/presentation/providers/client_providers.dart';
-import '../../../profile/presentation/providers/profile_provider.dart';
-import '../../../projects/presentation/providers/project_providers.dart';
-import '../../../dashboard/presentation/providers/dashboard_provider.dart';
+import '../../../../core/providers/repository_providers.dart';
 import '../../data/models/pdf_invoice_data.dart';
 import '../../data/pdf_generator.dart';
 
 /// Builds PdfInvoiceData from an invoice ID, then generates the PDF document.
 final invoicePdfProvider =
-    FutureProvider.family<pw.Document, int>((ref, invoiceId) async {
-  final invoiceDao = ref.watch(invoiceDaoProvider);
+    FutureProvider.family<pw.Document, String>((ref, invoiceId) async {
+  final invoiceDao = ref.watch(invoiceRepositoryProvider);
   final invoice = await invoiceDao.getInvoice(invoiceId);
   final lineItems = await invoiceDao.getLineItems(invoiceId);
 
-  final client = await ref.watch(clientDaoProvider).getClient(invoice.clientId);
-  final profile = await ref.watch(userProfileDaoProvider).getProfile();
+  final client = await ref.watch(clientRepositoryProvider).getClient(invoice.clientId);
+  final profile = await ref.watch(userProfileRepositoryProvider).getProfile();
 
   // Resolve template: invoice -> client -> profile -> first available
-  final templateDao = ref.watch(invoiceTemplateDaoProvider);
+  final templateDao = ref.watch(invoiceTemplateRepositoryProvider);
   InvoiceTemplate? template;
   if (invoice.templateId != null) {
     template = await templateDao.getById(invoice.templateId!);
@@ -39,8 +35,8 @@ final invoicePdfProvider =
       .where((li) => li.projectId != null)
       .map((li) => li.projectId!)
       .toSet();
-  final projectNames = <int, String>{};
-  final projectDao = ref.watch(projectDaoProvider);
+  final projectNames = <String, String>{};
+  final projectDao = ref.watch(projectRepositoryProvider);
   for (final pid in projectIds) {
     try {
       final project = await projectDao.getProject(pid);
@@ -64,16 +60,16 @@ final invoicePdfProvider =
 
 /// Same as [invoicePdfProvider] but allows overriding the template at preview time.
 final invoicePdfWithTemplateProvider = FutureProvider.family<pw.Document,
-    ({int invoiceId, int? templateId})>((ref, params) async {
-  final invoiceDao = ref.watch(invoiceDaoProvider);
+    ({String invoiceId, String? templateId})>((ref, params) async {
+  final invoiceDao = ref.watch(invoiceRepositoryProvider);
   final invoice = await invoiceDao.getInvoice(params.invoiceId);
   final lineItems = await invoiceDao.getLineItems(params.invoiceId);
 
   final client =
-      await ref.watch(clientDaoProvider).getClient(invoice.clientId);
-  final profile = await ref.watch(userProfileDaoProvider).getProfile();
+      await ref.watch(clientRepositoryProvider).getClient(invoice.clientId);
+  final profile = await ref.watch(userProfileRepositoryProvider).getProfile();
 
-  final templateDao = ref.watch(invoiceTemplateDaoProvider);
+  final templateDao = ref.watch(invoiceTemplateRepositoryProvider);
   InvoiceTemplate? template;
 
   // If a template override was provided, use it
@@ -98,8 +94,8 @@ final invoicePdfWithTemplateProvider = FutureProvider.family<pw.Document,
       .where((li) => li.projectId != null)
       .map((li) => li.projectId!)
       .toSet();
-  final projectNames = <int, String>{};
-  final projectDao = ref.watch(projectDaoProvider);
+  final projectNames = <String, String>{};
+  final projectDao = ref.watch(projectRepositoryProvider);
   for (final pid in projectIds) {
     try {
       final project = await projectDao.getProject(pid);

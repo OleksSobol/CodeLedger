@@ -5,6 +5,7 @@ import 'package:drift/drift.dart' hide Column;
 import '../../../../core/database/app_database.dart';
 import '../../../../core/constants/payment_terms.dart';
 import '../../../../core/utils/currency_formatter.dart';
+import '../../../../core/providers/repository_providers.dart';
 import '../../../time_tracking/presentation/providers/time_entry_providers.dart';
 import '../providers/client_providers.dart';
 
@@ -133,7 +134,7 @@ class _ClientFormPageState extends ConsumerState<ClientFormPage> {
 
         // If rate changed, offer to update uninvoiced entries
         if (rateChanged && mounted) {
-          final dao = ref.read(timeEntryDaoProvider);
+          final dao = ref.read(timeEntryRepositoryProvider);
           final count =
               await dao.countUninvoicedAtRate(widget.client!.id, oldRate);
           if (count > 0 && mounted) {

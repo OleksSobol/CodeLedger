@@ -2,7 +2,7 @@ import 'package:drift/drift.dart';
 import 'invoice_templates_table.dart';
 
 class Clients extends Table {
-  IntColumn get id => integer().autoIncrement()();
+  TextColumn get id => text()();
   TextColumn get name => text().unique()();
   TextColumn get contactName => text().nullable()();
   TextColumn get email => text().nullable()();
@@ -16,8 +16,8 @@ class Clients extends Table {
   RealColumn get hourlyRate => real().nullable()();
   TextColumn get currency => text().withDefault(const Constant('USD'))();
   RealColumn get taxRate => real().nullable()();
-  IntColumn get defaultTemplateId =>
-      integer().nullable().references(InvoiceTemplates, #id)();
+  TextColumn get defaultTemplateId =>
+      text().nullable().references(InvoiceTemplates, #id)();
   TextColumn get paymentTermsOverride => text().nullable()();
   IntColumn get paymentTermsDaysOverride => integer().nullable()();
   TextColumn get notes => text().nullable()();
@@ -27,4 +27,7 @@ class Clients extends Table {
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt =>
       dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
 }

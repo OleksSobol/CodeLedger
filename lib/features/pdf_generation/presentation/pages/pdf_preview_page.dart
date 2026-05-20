@@ -6,16 +6,14 @@ import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:printing/printing.dart';
 import '../../../../core/database/app_database.dart';
-import '../../../clients/presentation/providers/client_providers.dart';
-import '../../../dashboard/presentation/providers/dashboard_provider.dart';
+import '../../../../core/providers/repository_providers.dart';
 import '../../../email/presentation/providers/email_providers.dart';
 import '../../../invoices/presentation/providers/invoice_providers.dart';
 import '../../../invoices/presentation/providers/template_providers.dart';
-import '../../../profile/presentation/providers/profile_provider.dart';
 import '../providers/pdf_providers.dart';
 
 class PdfPreviewPage extends ConsumerStatefulWidget {
-  final int invoiceId;
+  final String invoiceId;
   final String invoiceNumber;
 
   const PdfPreviewPage({
@@ -29,7 +27,7 @@ class PdfPreviewPage extends ConsumerStatefulWidget {
 }
 
 class _PdfPreviewPageState extends ConsumerState<PdfPreviewPage> {
-  int? _selectedTemplateId;
+  String? _selectedTemplateId;
   bool _initialized = false;
   bool _sending = false;
 
@@ -123,8 +121,8 @@ class _PdfPreviewPageState extends ConsumerState<PdfPreviewPage> {
     final messenger = ScaffoldMessenger.of(context);
     setState(() => _sending = true);
     try {
-      final invoiceDao = ref.read(invoiceDaoProvider);
-      final invoice = await invoiceDao.getInvoice(widget.invoiceId);
+      final invoiceRepo = ref.read(invoiceRepositoryProvider);
+      final invoice = await invoiceRepo.getInvoice(widget.invoiceId);
 
       final doc = await ref.refresh(
         invoicePdfWithTemplateProvider((
@@ -139,7 +137,7 @@ class _PdfPreviewPageState extends ConsumerState<PdfPreviewPage> {
           '${dir.path}/${invoice.invoiceNumber.replaceAll(RegExp(r'[^\w]'), '_')}.pdf');
       await file.writeAsBytes(bytes);
 
-      final profile = await ref.read(userProfileDaoProvider).getProfile();
+      final profile = await ref.read(userProfileRepositoryProvider).getProfile();
       final subject = profile.defaultEmailSubjectFormat
           .replaceAll('{number}', invoice.invoiceNumber)
           .replaceAll('{client}', '')
@@ -150,8 +148,8 @@ class _PdfPreviewPageState extends ConsumerState<PdfPreviewPage> {
                 : '',
           );
 
-      final clientDao = ref.read(clientDaoProvider);
-      final client = await clientDao.getClient(invoice.clientId);
+      final clientRepo = ref.read(clientRepositoryProvider);
+      final client = await clientRepo.getClient(invoice.clientId);
       final recipients = <String>[if (client.email != null) client.email!];
 
       final emailService = ref.read(emailServiceProvider);
@@ -173,8 +171,8 @@ class _PdfPreviewPageState extends ConsumerState<PdfPreviewPage> {
 
 class _TemplateSelector extends StatelessWidget {
   final List<InvoiceTemplate> templates;
-  final int? selectedId;
-  final ValueChanged<int?> onChanged;
+  final String? selectedId;
+  final ValueChanged<String?> onChanged;
 
   const _TemplateSelector({
     required this.templates,

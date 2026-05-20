@@ -26,7 +26,7 @@ class _EditDraftInvoicePageState extends ConsumerState<EditDraftInvoicePage> {
   late final TextEditingController _taxLabelCtrl;
   late final TextEditingController _notesCtrl;
 
-  late int _selectedClientId;
+  late String _selectedClientId;
   late DateTime _issueDate;
   late DateTime _dueDate;
   late String _currency;
@@ -165,7 +165,7 @@ class _EditDraftInvoicePageState extends ConsumerState<EditDraftInvoicePage> {
                           Text('Client #$_selectedClientId'),
                     ),
                 ];
-                return DropdownButtonFormField<int>(
+                return DropdownButtonFormField<String>(
                   // ignore: deprecated_member_use
                   value: _selectedClientId,
                   decoration: const InputDecoration(

@@ -161,7 +161,7 @@ class _ActiveTimerCardState extends ConsumerState<ActiveTimerCard>
     );
   }
 
-  Future<void> _clockOut(BuildContext context, int entryId) async {
+  Future<void> _clockOut(BuildContext context, String entryId) async {
     final messenger = ScaffoldMessenger.of(context);
     try {
       await ref.read(timerNotifierProvider.notifier).clockOut(entryId);

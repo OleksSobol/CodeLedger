@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import 'package:uuid/uuid.dart';
 import '../app_database.dart';
 import '../tables/time_entries_table.dart';
 import '../../utils/tag_utils.dart';
@@ -10,7 +11,6 @@ class TimeEntryDao extends DatabaseAccessor<AppDatabase>
     with _$TimeEntryDaoMixin {
   TimeEntryDao(super.db);
 
-  /// Check if there's a currently running timer (end_time is null).
   Future<TimeEntry?> getRunningEntry() async {
     final query = select(timeEntries)
       ..where((t) => t.endTime.isNull())
@@ -37,8 +37,7 @@ class TimeEntryDao extends DatabaseAccessor<AppDatabase>
     return (select(timeEntries)..where((t) => t.endTime.isNull())).get();
   }
 
-  /// Insert a time entry with overlap check (in a transaction).
-  Future<int> insertWithOverlapCheck(TimeEntriesCompanion entry) {
+  Future<String> insertWithOverlapCheck(TimeEntriesCompanion entry) {
     return transaction(() async {
       final start = entry.startTime.value;
       final end = entry.endTime.value;
@@ -52,15 +51,15 @@ class TimeEntryDao extends DatabaseAccessor<AppDatabase>
           throw OverlappingTimeEntryException(overlapping.first);
         }
       }
-      return into(timeEntries).insert(entry);
+      const uuid = Uuid();
+      final id = uuid.v4();
+      await into(timeEntries).insert(entry.copyWith(id: Value(id)));
+      return id;
     });
   }
 
-  /// Clock out the running entry.
-  /// If [truncateOverlaps] is true, overlapping entries will be adjusted
-  /// (shortened or deleted) instead of throwing an exception.
   Future<bool> clockOut(
-    int entryId, {
+    String entryId, {
     String? description,
     bool truncateOverlaps = false,
   }) {
@@ -71,7 +70,6 @@ class TimeEntryDao extends DatabaseAccessor<AppDatabase>
               .getSingle();
       final duration = now.difference(entry.startTime).inMinutes;
 
-      // Check for overlaps with the new end time (same client only)
       final overlapping = await _findOverlapping(
         entry.startTime,
         now,
@@ -82,7 +80,6 @@ class TimeEntryDao extends DatabaseAccessor<AppDatabase>
         if (!truncateOverlaps) {
           throw OverlappingTimeEntryException(overlapping.first);
         }
-        // Resolve overlaps by adjusting or deleting conflicting entries
         await _resolveOverlaps(overlapping, entry.startTime, now);
       }
 
@@ -98,22 +95,19 @@ class TimeEntryDao extends DatabaseAccessor<AppDatabase>
     });
   }
 
-  /// Update a time entry's times/details with overlap check.
   Future<bool> updateWithOverlapCheck(
-    int entryId,
+    String entryId,
     TimeEntriesCompanion companion,
   ) {
     return transaction(() async {
       final start = companion.startTime;
       final end = companion.endTime;
 
-      // Fetch existing entry once so we always have clientId + current times
       final existing =
           await (select(timeEntries)..where((t) => t.id.equals(entryId)))
               .getSingle();
       final clientId = existing.clientId;
 
-      // If both start and end are being set, check overlaps
       if (start.present && end.present && end.value != null) {
         final overlapping = await _findOverlapping(
           start.value,
@@ -125,7 +119,6 @@ class TimeEntryDao extends DatabaseAccessor<AppDatabase>
           throw OverlappingTimeEntryException(overlapping.first);
         }
       } else if (end.present && end.value != null) {
-        // Only end is changing — use existing start
         final overlapping = await _findOverlapping(
           existing.startTime,
           end.value!,
@@ -136,7 +129,6 @@ class TimeEntryDao extends DatabaseAccessor<AppDatabase>
           throw OverlappingTimeEntryException(overlapping.first);
         }
       } else if (start.present) {
-        // Only start is changing — use existing end
         if (existing.endTime != null) {
           final overlapping = await _findOverlapping(
             start.value,
@@ -157,26 +149,20 @@ class TimeEntryDao extends DatabaseAccessor<AppDatabase>
     });
   }
 
-  /// Find overlapping entries for a given time range.
-  /// Only entries for the same [clientId] are considered overlapping —
-  /// concurrent work for different clients is allowed.
   Future<List<TimeEntry>> _findOverlapping(
     DateTime start,
     DateTime end, {
-    int? excludeId,
-    int? clientId,
+    String? excludeId,
+    String? clientId,
   }) {
     final query = select(timeEntries)
       ..where((t) {
-        // Overlap: existing.start < new.end AND existing.end > new.start
-        // Also exclude entries with null end_time (running timers handled separately)
         var condition = t.startTime.isSmallerThanValue(end) &
             t.endTime.isNotNull() &
             t.endTime.isBiggerThanValue(start);
         if (excludeId != null) {
           condition = condition & t.id.equals(excludeId).not();
         }
-        // Only flag overlaps for the same client
         if (clientId != null) {
           condition = condition & t.clientId.equals(clientId);
         }
@@ -185,10 +171,6 @@ class TimeEntryDao extends DatabaseAccessor<AppDatabase>
     return query.get();
   }
 
-  /// Resolve overlapping entries by truncating or deleting them.
-  /// - If an overlapping entry is fully contained within [start, end], delete it.
-  /// - If it starts before [start], truncate its end to [start].
-  /// - If it ends after [end], move its start to [end].
   Future<void> _resolveOverlaps(
     List<TimeEntry> overlapping,
     DateTime start,
@@ -199,10 +181,8 @@ class TimeEntryDao extends DatabaseAccessor<AppDatabase>
       final eEnd = entry.endTime!;
 
       if (eStart.compareTo(start) >= 0 && eEnd.compareTo(end) <= 0) {
-        // Fully contained — delete it
         await (delete(timeEntries)..where((t) => t.id.equals(entry.id))).go();
       } else if (eStart.isBefore(start)) {
-        // Overlaps on the left — truncate end to our start
         final newDuration = start.difference(eStart).inMinutes;
         await (update(timeEntries)..where((t) => t.id.equals(entry.id))).write(
           TimeEntriesCompanion(
@@ -212,7 +192,6 @@ class TimeEntryDao extends DatabaseAccessor<AppDatabase>
           ),
         );
       } else {
-        // Overlaps on the right — move start to our end
         final newDuration = eEnd.difference(end).inMinutes;
         await (update(timeEntries)..where((t) => t.id.equals(entry.id))).write(
           TimeEntriesCompanion(
@@ -225,7 +204,6 @@ class TimeEntryDao extends DatabaseAccessor<AppDatabase>
     }
   }
 
-  /// Get entries for a date range.
   Stream<List<TimeEntry>> watchEntriesForDateRange(
     DateTime start,
     DateTime end,
@@ -238,8 +216,7 @@ class TimeEntryDao extends DatabaseAccessor<AppDatabase>
         .watch();
   }
 
-  /// Get uninvoiced entries for a client.
-  Future<List<TimeEntry>> getUninvoicedForClient(int clientId) {
+  Future<List<TimeEntry>> getUninvoicedForClient(String clientId) {
     return (select(timeEntries)
           ..where((t) =>
               t.clientId.equals(clientId) &
@@ -249,8 +226,7 @@ class TimeEntryDao extends DatabaseAccessor<AppDatabase>
         .get();
   }
 
-  /// Get uninvoiced entries for a specific project.
-  Future<List<TimeEntry>> getUninvoicedForProject(int projectId) {
+  Future<List<TimeEntry>> getUninvoicedForProject(String projectId) {
     return (select(timeEntries)
           ..where((t) =>
               t.projectId.equals(projectId) &
@@ -260,7 +236,6 @@ class TimeEntryDao extends DatabaseAccessor<AppDatabase>
         .get();
   }
 
-  /// Get the most recent completed entry (for quick clock-in repeat).
   Future<TimeEntry?> getMostRecentCompleted() async {
     final results = await (select(timeEntries)
           ..where((t) => t.endTime.isNotNull())
@@ -270,9 +245,7 @@ class TimeEntryDao extends DatabaseAccessor<AppDatabase>
     return results.isEmpty ? null : results.first;
   }
 
-  /// Update hourly rate on all uninvoiced entries for a client.
-  /// Returns the number of affected rows.
-  Future<int> updateRateForClient(int clientId, double newRate) {
+  Future<int> updateRateForClient(String clientId, double newRate) {
     return (update(timeEntries)
           ..where((t) =>
               t.clientId.equals(clientId) &
@@ -283,8 +256,7 @@ class TimeEntryDao extends DatabaseAccessor<AppDatabase>
         ));
   }
 
-  /// Count uninvoiced entries for a client at a specific rate.
-  Future<int> countUninvoicedAtRate(int clientId, double rate) async {
+  Future<int> countUninvoicedAtRate(String clientId, double rate) async {
     final entries = await (select(timeEntries)
           ..where((t) =>
               t.clientId.equals(clientId) &
@@ -295,7 +267,6 @@ class TimeEntryDao extends DatabaseAccessor<AppDatabase>
     return entries.length;
   }
 
-  /// Get all unique tags used across all entries.
   Future<Set<String>> getAllTags() async {
     final rows = await (select(timeEntries)
           ..where((t) => t.tags.isNotNull()))
@@ -307,8 +278,7 @@ class TimeEntryDao extends DatabaseAccessor<AppDatabase>
     return result;
   }
 
-  /// Mark entries as invoiced.
-  Future<void> markAsInvoiced(List<int> entryIds, int invoiceId) {
+  Future<void> markAsInvoiced(List<String> entryIds, String invoiceId) {
     return (update(timeEntries)..where((t) => t.id.isIn(entryIds))).write(
       TimeEntriesCompanion(
         isInvoiced: const Value(true),
@@ -318,8 +288,7 @@ class TimeEntryDao extends DatabaseAccessor<AppDatabase>
     );
   }
 
-  /// Unmark entries (e.g., when deleting a draft invoice).
-  Future<void> unmarkInvoiced(int invoiceId) {
+  Future<void> unmarkInvoiced(String invoiceId) {
     return (update(timeEntries)
           ..where((t) => t.invoiceId.equals(invoiceId)))
         .write(const TimeEntriesCompanion(
@@ -328,12 +297,11 @@ class TimeEntryDao extends DatabaseAccessor<AppDatabase>
         ));
   }
 
-  /// Get all entries (for export).
   Future<List<TimeEntry>> getAllEntries({
     DateTime? from,
     DateTime? to,
-    int? clientId,
-    int? projectId,
+    String? clientId,
+    String? projectId,
   }) {
     final query = select(timeEntries);
     query.where((t) {

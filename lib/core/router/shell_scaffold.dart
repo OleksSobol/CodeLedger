@@ -148,7 +148,7 @@ class ShellScaffold extends ConsumerWidget {
   }
 
   Future<void> _clockOut(
-      BuildContext context, WidgetRef ref, int entryId) async {
+      BuildContext context, WidgetRef ref, String entryId) async {
     try {
       await ref.read(timerNotifierProvider.notifier).clockOut(entryId);
     } catch (e) {

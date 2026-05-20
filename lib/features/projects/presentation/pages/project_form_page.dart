@@ -7,7 +7,7 @@ import '../../../../core/database/app_database.dart';
 import '../providers/project_providers.dart';
 
 class ProjectFormPage extends ConsumerStatefulWidget {
-  final int clientId;
+  final String clientId;
   final Project? project;
 
   const ProjectFormPage({

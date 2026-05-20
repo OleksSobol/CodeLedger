@@ -169,8 +169,7 @@ final appRouter = GoRouter(
       name: 'invoiceDetail',
       parentNavigatorKey: _rootNavigatorKey,
       builder: (context, state) {
-        final invoiceId =
-            int.parse(state.pathParameters['invoiceId']!);
+        final invoiceId = state.pathParameters['invoiceId']!;
         return InvoiceDetailPage(invoiceId: invoiceId);
       },
     ),
@@ -198,8 +197,7 @@ final appRouter = GoRouter(
           name: 'clientDetail',
           parentNavigatorKey: _rootNavigatorKey,
           builder: (context, state) {
-            final clientId =
-                int.parse(state.pathParameters['clientId']!);
+            final clientId = state.pathParameters['clientId']!;
             return ClientDetailPage(clientId: clientId);
           },
           routes: [
@@ -217,8 +215,7 @@ final appRouter = GoRouter(
               name: 'projectAdd',
               parentNavigatorKey: _rootNavigatorKey,
               builder: (context, state) {
-                final clientId =
-                    int.parse(state.pathParameters['clientId']!);
+                final clientId = state.pathParameters['clientId']!;
                 return ProjectFormPage(clientId: clientId);
               },
             ),
@@ -227,8 +224,7 @@ final appRouter = GoRouter(
               name: 'projectEdit',
               parentNavigatorKey: _rootNavigatorKey,
               builder: (context, state) {
-                final clientId =
-                    int.parse(state.pathParameters['clientId']!);
+                final clientId = state.pathParameters['clientId']!;
                 final project = state.extra as dynamic;
                 return ProjectFormPage(
                     clientId: clientId, project: project);

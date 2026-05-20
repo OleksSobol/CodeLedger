@@ -1,19 +1,15 @@
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/database/app_database.dart';
-import '../../../../core/database/daos/invoice_template_dao.dart';
-import '../../../../core/providers/database_provider.dart';
-
-final invoiceTemplateDaoProvider = Provider<InvoiceTemplateDao>((ref) {
-  return InvoiceTemplateDao(ref.watch(databaseProvider));
-});
+import '../../../../core/providers/repository_providers.dart';
+import '../../../../core/repositories/invoice_template_repository.dart';
 
 final allTemplatesProvider = StreamProvider<List<InvoiceTemplate>>((ref) {
-  return ref.watch(invoiceTemplateDaoProvider).watchAll();
+  return ref.watch(invoiceTemplateRepositoryProvider).watchAll();
 });
 
 final defaultTemplateProvider = FutureProvider<InvoiceTemplate?>((ref) {
-  return ref.watch(invoiceTemplateDaoProvider).getDefault();
+  return ref.watch(invoiceTemplateRepositoryProvider).getDefault();
 });
 
 /// Notifier for template mutations (create, update, delete, set default).
@@ -21,24 +17,24 @@ final templateNotifierProvider =
     AsyncNotifierProvider<TemplateNotifier, void>(TemplateNotifier.new);
 
 class TemplateNotifier extends AsyncNotifier<void> {
-  late InvoiceTemplateDao _dao;
+  late InvoiceTemplateRepository _dao;
 
   @override
   Future<void> build() async {
-    _dao = ref.watch(invoiceTemplateDaoProvider);
+    _dao = ref.watch(invoiceTemplateRepositoryProvider);
   }
 
   Future<bool> updateTemplate(
-      int id, InvoiceTemplatesCompanion companion) {
+      String id, InvoiceTemplatesCompanion companion) {
     return _dao.updateTemplate(id, companion);
   }
 
-  Future<int> duplicateTemplate(
+  Future<String> duplicateTemplate(
       InvoiceTemplate source, String newName) {
-    return _dao.insertTemplate(InvoiceTemplatesCompanion.insert(
-      name: newName,
-      templateKey:
-          '${source.templateKey}_copy_${DateTime.now().millisecondsSinceEpoch}',
+    return _dao.insertTemplate(InvoiceTemplatesCompanion(
+      name: Value(newName),
+      templateKey: Value(
+          '${source.templateKey}_copy_${DateTime.now().millisecondsSinceEpoch}'),
       description: Value(source.description),
       isDefault: const Value(false),
       primaryColor: Value(source.primaryColor),
@@ -59,7 +55,7 @@ class TemplateNotifier extends AsyncNotifier<void> {
     ));
   }
 
-  Future<void> deleteTemplate(int id) => _dao.deleteTemplate(id);
+  Future<void> deleteTemplate(String id) => _dao.deleteTemplate(id);
 
-  Future<void> setDefault(int id) => _dao.setDefault(id);
+  Future<void> setDefault(String id) => _dao.setDefault(id);
 }

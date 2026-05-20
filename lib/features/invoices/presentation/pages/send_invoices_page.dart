@@ -6,11 +6,11 @@ import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../core/utils/currency_formatter.dart';
+import '../../../../core/providers/repository_providers.dart';
 import '../../../clients/presentation/providers/client_providers.dart';
 import '../../../email/presentation/providers/email_providers.dart';
 import '../../../pdf_generation/presentation/pages/pdf_preview_page.dart';
 import '../../../pdf_generation/presentation/providers/pdf_providers.dart';
-import '../../../profile/presentation/providers/profile_provider.dart';
 import '../providers/invoice_providers.dart';
 
 /// Dedicated screen for the "send invoices" routine. Shows only drafts
@@ -185,7 +185,7 @@ class _DraftCardState extends ConsumerState<_DraftCard> {
       await file.writeAsBytes(bytes);
 
       final profile =
-          await ref.read(userProfileDaoProvider).getProfile();
+          await ref.read(userProfileRepositoryProvider).getProfile();
       final subject = profile.defaultEmailSubjectFormat
           .replaceAll('{number}', invoice.invoiceNumber)
           .replaceAll('{client}', '')
@@ -197,7 +197,7 @@ class _DraftCardState extends ConsumerState<_DraftCard> {
                   : '');
 
       final client =
-          await ref.read(clientDaoProvider).getClient(invoice.clientId);
+          await ref.read(clientRepositoryProvider).getClient(invoice.clientId);
       final recipients =
           <String>[if (client.email != null) client.email!];
 

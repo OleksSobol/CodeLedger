@@ -134,7 +134,7 @@ class _AddQuickActionSheet extends ConsumerStatefulWidget {
 }
 
 class _AddQuickActionSheetState extends ConsumerState<_AddQuickActionSheet> {
-  int? _selectedClientId;
+  String? _selectedClientId;
   final _labelController = TextEditingController();
   final _descriptionController = TextEditingController();
 
@@ -163,14 +163,14 @@ class _AddQuickActionSheetState extends ConsumerState<_AddQuickActionSheet> {
               style: theme.textTheme.titleMedium
                   ?.copyWith(fontWeight: FontWeight.bold)),
           const SizedBox(height: Spacing.md),
-          DropdownButtonFormField<int>(
+          DropdownButtonFormField<String>(
             decoration: const InputDecoration(
               labelText: 'Client',
               border: OutlineInputBorder(),
             ),
-            items: widget.clients.map<DropdownMenuItem<int>>((c) {
+            items: widget.clients.map<DropdownMenuItem<String>>((c) {
               return DropdownMenuItem(
-                value: c.id as int,
+                value: c.id as String,
                 child: Text(c.name as String),
               );
             }).toList(),

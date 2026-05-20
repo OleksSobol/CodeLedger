@@ -7,7 +7,7 @@ import '../providers/invoice_providers.dart';
 /// Dialog to record a payment against an invoice.
 /// Returns `true` if a payment was recorded.
 class RecordPaymentDialog extends ConsumerStatefulWidget {
-  final int invoiceId;
+  final String invoiceId;
   final double balanceDue;
   final String currency;
 

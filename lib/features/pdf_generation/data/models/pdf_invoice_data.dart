@@ -7,7 +7,7 @@ class PdfInvoiceData {
   final UserProfile profile;
   final InvoiceTemplate template;
   final List<InvoiceLineItem> lineItems;
-  final Map<int, String> projectNames; // projectId -> name
+  final Map<String, String> projectNames; // projectId -> name
 
   const PdfInvoiceData({
     required this.invoice,
@@ -15,7 +15,7 @@ class PdfInvoiceData {
     required this.profile,
     required this.template,
     required this.lineItems,
-    this.projectNames = const {},
+    this.projectNames = const <String, String>{},
   });
 
   String get formattedAddress {

@@ -2,8 +2,8 @@ import 'package:drift/drift.dart';
 import 'clients_table.dart';
 
 class Projects extends Table {
-  IntColumn get id => integer().autoIncrement()();
-  IntColumn get clientId => integer().references(Clients, #id)();
+  TextColumn get id => text()();
+  TextColumn get clientId => text().references(Clients, #id)();
   TextColumn get name => text()();
   TextColumn get description => text().nullable()();
   RealColumn get hourlyRateOverride => real().nullable()();
@@ -16,6 +16,9 @@ class Projects extends Table {
       dateTime().withDefault(currentDateAndTime)();
   DateTimeColumn get updatedAt =>
       dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column<Object>> get primaryKey => {id};
 
   @override
   List<Set<Column>> get uniqueKeys => [

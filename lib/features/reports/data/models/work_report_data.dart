@@ -7,7 +7,7 @@ class WorkReportData {
   final List<TimeEntry> entries;
   final Client? client;
   final Project? project;
-  final Map<int, String> projectNames;
+  final Map<String, String> projectNames;
 
   const WorkReportData({
     required this.profile,
@@ -16,7 +16,7 @@ class WorkReportData {
     required this.entries,
     this.client,
     this.project,
-    this.projectNames = const {},
+    this.projectNames = const <String, String>{},
   });
 
   String get dateRangeText {

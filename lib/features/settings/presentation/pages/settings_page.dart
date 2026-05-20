@@ -1,9 +1,12 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/providers/app_version_provider.dart';
 import '../../../../core/providers/landing_route_provider.dart';
 import '../../../../core/providers/multi_timer_provider.dart';
+import '../../../../core/providers/sync_service_provider.dart';
+import '../../../../core/sync/sync_service.dart';
 import '../../../../core/providers/theme_provider.dart';
 
 class SettingsPage extends ConsumerWidget {
@@ -93,6 +96,13 @@ class SettingsPage extends ConsumerWidget {
             onTap: () => context.push('/settings/accounts'),
           ),
           const Divider(height: 1),
+
+          // --- Sync section (Android only; hidden on web) ---
+          if (!kIsWeb) ...[
+            _SectionHeader(title: 'Sync'),
+            const _SyncStatusTile(),
+            const Divider(height: 1),
+          ],
 
           // --- Appearance section ---
           _SectionHeader(title: 'Appearance'),
@@ -217,6 +227,75 @@ class _MultiTimerTile extends ConsumerWidget {
       value: enabled,
       onChanged: (v) => ref.read(multiTimerProvider.notifier).setEnabled(v),
     );
+  }
+}
+
+class _SyncStatusTile extends ConsumerStatefulWidget {
+  const _SyncStatusTile();
+
+  @override
+  ConsumerState<_SyncStatusTile> createState() => _SyncStatusTileState();
+}
+
+class _SyncStatusTileState extends ConsumerState<_SyncStatusTile> {
+  bool _syncing = false;
+
+  Future<void> _syncNow() async {
+    final syncFn = ref.read(syncNowProvider);
+    if (syncFn == null) return;
+    setState(() => _syncing = true);
+    try {
+      await syncFn();
+    } finally {
+      if (mounted) setState(() => _syncing = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final statusAsync = ref.watch(syncStatusProvider);
+
+    final (label, color, icon) = statusAsync.when(
+      data: (status) {
+        if (status == null) return ('Sign in to sync', theme.colorScheme.outline, Icons.cloud_off_outlined);
+        return switch (status.state) {
+          SyncState.syncing => ('Syncing…', theme.colorScheme.primary, Icons.sync),
+          SyncState.error => ('Sync error: ${status.error ?? ''}', theme.colorScheme.error, Icons.sync_problem_outlined),
+          SyncState.idle => status.lastSyncedAt != null
+              ? ('Last synced ${_ago(status.lastSyncedAt!)}', Colors.green, Icons.cloud_done_outlined)
+              : ('Never synced', theme.colorScheme.outline, Icons.cloud_upload_outlined),
+        };
+      },
+      loading: () => ('Loading…', theme.colorScheme.outline, Icons.sync),
+      error: (err, st) => ('Error', theme.colorScheme.error, Icons.error_outline),
+    );
+
+    return ListTile(
+      leading: _syncing
+          ? SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
+                  strokeWidth: 2, color: theme.colorScheme.primary),
+            )
+          : Icon(icon, color: color),
+      title: const Text('Cloud Sync'),
+      subtitle: Text(label,
+          style: theme.textTheme.bodySmall?.copyWith(color: color)),
+      trailing: TextButton(
+        onPressed: _syncing ? null : _syncNow,
+        child: const Text('Sync Now'),
+      ),
+    );
+  }
+
+  String _ago(DateTime t) {
+    final diff = DateTime.now().difference(t);
+    if (diff.inSeconds < 60) return 'just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    return '${diff.inDays}d ago';
   }
 }
 

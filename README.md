@@ -49,16 +49,19 @@ Offline-first time tracking and invoicing app for freelance developers. Built wi
 
 ### Web
 - Responsive layout — `NavigationRail` sidebar on wide screens, bottom nav on mobile
-- **Google Sign-In gate** — web deployment requires Google account login before accessing data
-- SQLite via WASM (`sqlite3.wasm` + Drift web worker) for persistent browser storage
+- **Supabase Auth** — Google OAuth sign-in (all platforms)
+- **Supabase backend** — PostgreSQL + Row Level Security; web reads/writes directly via PostgREST
 - Auto-deployed as Docker image on every push to `main` via GitHub Actions
 
 ## Tech Stack
 - **Flutter** (Android, iOS, Web, Windows)
-- **Drift** — SQLite ORM with reactive streams
-- **Riverpod** — State management
+- **Drift** — SQLite ORM with reactive streams (schema v5 — UUID primary keys; Android offline-first)
+- **Supabase** — Auth (Google OAuth) + PostgreSQL backend + web data layer
+- **DIY Sync** — Bidirectional Drift ↔ Supabase sync on Android: upload-first then download, full upsert, manual "Sync Now" + auto-sync on startup
+- **Riverpod** — State management; platform-aware repository providers select Drift (Android) vs Supabase (web)
 - **GoRouter** — Navigation
 - **pdf** / **printing** — Invoice PDF generation
+- **uuid** — UUID v4 generation for all database primary keys
 
 ## Setup
 

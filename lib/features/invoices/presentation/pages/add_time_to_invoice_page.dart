@@ -16,7 +16,7 @@ class AddTimeToInvoicePage extends ConsumerStatefulWidget {
 }
 
 class _AddTimeToInvoicePageState extends ConsumerState<AddTimeToInvoicePage> {
-  final Set<int> _selectedIds = {};
+  final Set<String> _selectedIds = {};
   bool _saving = false;
 
   @override
@@ -113,8 +113,8 @@ class _AddTimeToInvoicePageState extends ConsumerState<AddTimeToInvoicePage> {
 
 class _EntryList extends StatelessWidget {
   final List<TimeEntry> entries;
-  final Set<int> selectedIds;
-  final ValueChanged<int> onToggle;
+  final Set<String> selectedIds;
+  final ValueChanged<String> onToggle;
 
   const _EntryList({
     required this.entries,

@@ -757,14 +757,14 @@ class _ReviewStep extends ConsumerWidget {
               loading: () => const LinearProgressIndicator(),
               error: (_, _) => const SizedBox.shrink(),
               data: (templates) {
-                return DropdownButtonFormField<int?>(
+                return DropdownButtonFormField<String?>(
                   initialValue: wizard.templateId,
                   decoration: const InputDecoration(
                     labelText: 'Invoice Template',
                     border: OutlineInputBorder(),
                   ),
                   items: templates
-                      .map((t) => DropdownMenuItem<int?>(
+                      .map((t) => DropdownMenuItem<String?>(
                             value: t.id,
                             child: Text(t.name),
                           ))

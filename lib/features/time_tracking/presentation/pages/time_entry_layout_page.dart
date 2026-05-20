@@ -159,8 +159,8 @@ class _TimeEntryLayoutPageState extends ConsumerState<TimeEntryLayoutPage> {
     final start = DateTime(now.year, now.month, now.day, 9, 30);
     final end = DateTime(now.year, now.month, now.day, 17, 45);
     return TimeEntry(
-      id: 0,
-      clientId: 1,
+      id: 'sample',
+      clientId: 'sample-client',
       startTime: start,
       endTime: end,
       durationMinutes: 495,

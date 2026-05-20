@@ -1,28 +1,22 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:drift/drift.dart';
 import '../../../../core/database/app_database.dart';
-import '../../../../core/database/daos/client_dao.dart';
-import '../../../../core/providers/database_provider.dart';
-
-final clientDaoProvider = Provider<ClientDao>((ref) {
-  return ClientDao(ref.watch(databaseProvider));
-});
+import '../../../../core/providers/repository_providers.dart';
+import '../../../../core/repositories/client_repository.dart';
 
 final activeClientsProvider = StreamProvider<List<Client>>((ref) {
-  return ref.watch(clientDaoProvider).watchActiveClients();
+  return ref.watch(clientRepositoryProvider).watchActiveClients();
 });
 
 final allClientsProvider = StreamProvider<List<Client>>((ref) {
-  return ref.watch(clientDaoProvider).watchAllClients();
+  return ref.watch(clientRepositoryProvider).watchAllClients();
 });
 
-/// Fetches a single client by ID.
 final clientByIdProvider =
-    FutureProvider.family<Client, int>((ref, clientId) async {
-  return ref.watch(clientDaoProvider).getClient(clientId);
+    FutureProvider.family<Client, String>((ref, clientId) async {
+  return ref.watch(clientRepositoryProvider).getClient(clientId);
 });
 
-/// Provides summary data for a single client.
 class ClientSummary {
   final Client client;
   final double uninvoicedHours;
@@ -38,12 +32,12 @@ class ClientSummary {
 }
 
 final clientSummaryProvider =
-    FutureProvider.family<ClientSummary, int>((ref, clientId) async {
-  final dao = ref.watch(clientDaoProvider);
-  final client = await dao.getClient(clientId);
-  final uninvoiced = await dao.getUninvoicedHours(clientId);
-  final billed = await dao.getTotalBilled(clientId);
-  final paid = await dao.getTotalPaid(clientId);
+    FutureProvider.family<ClientSummary, String>((ref, clientId) async {
+  final repo = ref.watch(clientRepositoryProvider);
+  final client = await repo.getClient(clientId);
+  final uninvoiced = await repo.getUninvoicedHours(clientId);
+  final billed = await repo.getTotalBilled(clientId);
+  final paid = await repo.getTotalPaid(clientId);
   return ClientSummary(
     client: client,
     uninvoicedHours: uninvoiced,
@@ -56,15 +50,15 @@ final clientNotifierProvider =
     AsyncNotifierProvider<ClientNotifier, List<Client>>(ClientNotifier.new);
 
 class ClientNotifier extends AsyncNotifier<List<Client>> {
-  late ClientDao _dao;
+  late ClientRepository _dao;
 
   @override
   Future<List<Client>> build() async {
-    _dao = ref.watch(clientDaoProvider);
+    _dao = ref.watch(clientRepositoryProvider);
     return _dao.getActiveClients();
   }
 
-  Future<int> addClient({
+  Future<String> addClient({
     required String name,
     String? contactName,
     String? email,
@@ -82,8 +76,8 @@ class ClientNotifier extends AsyncNotifier<List<Client>> {
     int? paymentTermsDaysOverride,
     String? notes,
   }) async {
-    final id = await _dao.insertClient(ClientsCompanion.insert(
-      name: name,
+    final id = await _dao.insertClient(ClientsCompanion(
+      name: Value(name),
       contactName: Value(contactName),
       email: Value(email),
       phone: Value(phone),
@@ -104,7 +98,7 @@ class ClientNotifier extends AsyncNotifier<List<Client>> {
     return id;
   }
 
-  Future<bool> updateClient(int id, ClientsCompanion companion) async {
+  Future<bool> updateClient(String id, ClientsCompanion companion) async {
     final result = await _dao.updateClient(id, companion);
     if (result) {
       ref.invalidateSelf();
@@ -114,7 +108,7 @@ class ClientNotifier extends AsyncNotifier<List<Client>> {
     return result;
   }
 
-  Future<bool> archiveClient(int id) async {
+  Future<bool> archiveClient(String id) async {
     final result = await _dao.archiveClient(id);
     if (result) {
       ref.invalidateSelf();
@@ -124,11 +118,9 @@ class ClientNotifier extends AsyncNotifier<List<Client>> {
     return result;
   }
 
-  /// Check if client has time entries or invoices.
-  Future<bool> hasLinkedRecords(int id) => _dao.hasLinkedRecords(id);
+  Future<bool> hasLinkedRecords(String id) => _dao.hasLinkedRecords(id);
 
-  /// Permanently delete a client (only if no linked records).
-  Future<void> deleteClient(int id) async {
+  Future<void> deleteClient(String id) async {
     await _dao.deleteClient(id);
     ref.invalidateSelf();
   }

@@ -7,9 +7,9 @@ import 'package:intl/intl.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../core/database/daos/invoice_dao.dart';
 import '../../../../core/providers/database_provider.dart';
+import '../../../../core/providers/repository_providers.dart';
 import '../../../../shared/widgets/spacing.dart';
 import '../../../clients/presentation/providers/client_providers.dart';
-import '../../../profile/presentation/providers/profile_provider.dart';
 import '../providers/invoice_providers.dart';
 
 class ManualInvoicePage extends ConsumerStatefulWidget {
@@ -27,7 +27,7 @@ class _ManualInvoicePageState extends ConsumerState<ManualInvoicePage> {
   final _taxRateCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
 
-  int? _selectedClientId;
+  String? _selectedClientId;
   DateTime _issueDate = DateTime.now();
   DateTime _dueDate = DateTime.now().add(const Duration(days: 30));
   String _status = 'paid';
@@ -44,7 +44,7 @@ class _ManualInvoicePageState extends ConsumerState<ManualInvoicePage> {
   }
 
   Future<void> _prefillFromProfile() async {
-    final profileDao = ref.read(userProfileDaoProvider);
+    final profileDao = ref.read(userProfileRepositoryProvider);
     final profile = await profileDao.getProfile();
     final invoiceNumber = await profileDao.getNextInvoiceNumber();
     if (!mounted) return;
@@ -99,7 +99,7 @@ class _ManualInvoicePageState extends ConsumerState<ManualInvoicePage> {
 
     setState(() => _isSaving = true);
     try {
-      final profileDao = ref.read(userProfileDaoProvider);
+      final profileDao = ref.read(userProfileRepositoryProvider);
       final profile = await profileDao.getProfile();
       final invoiceDao = InvoiceDao(ref.read(databaseProvider));
 
@@ -112,12 +112,12 @@ class _ManualInvoicePageState extends ConsumerState<ManualInvoicePage> {
       final paidDate = _status == 'paid' ? _issueDate : null;
 
       await invoiceDao.createInvoice(
-        invoice: InvoicesCompanion.insert(
-          clientId: _selectedClientId!,
-          invoiceNumber: _invoiceNumberCtrl.text.trim(),
+        invoice: InvoicesCompanion(
+          clientId: Value(_selectedClientId!),
+          invoiceNumber: Value(_invoiceNumberCtrl.text.trim()),
           status: Value(_status),
-          issueDate: _issueDate,
-          dueDate: _dueDate,
+          issueDate: Value(_issueDate),
+          dueDate: Value(_dueDate),
           subtotal: Value(subtotal),
           taxRate: Value(taxRate),
           taxLabel: Value(profile.defaultTaxLabel),
@@ -177,7 +177,7 @@ class _ManualInvoicePageState extends ConsumerState<ManualInvoicePage> {
             clientsAsync.when(
               loading: () => const LinearProgressIndicator(),
               error: (e, _) => Text('Error: $e'),
-              data: (clients) => DropdownButtonFormField<int>(
+              data: (clients) => DropdownButtonFormField<String>(
                 initialValue: _selectedClientId,
                 decoration: const InputDecoration(
                   labelText: 'Client *',

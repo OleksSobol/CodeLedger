@@ -1,5 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../../core/providers/auth_provider.dart';
 import '../../../../core/providers/theme_provider.dart';
 import '../../../github/presentation/providers/github_provider.dart';
 
@@ -142,6 +145,19 @@ class _AccountsSettingsPageState extends ConsumerState<AccountsSettingsPage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          if (!kIsWeb) ...[
+            Text(
+              'Cloud Sync',
+              style: theme.textTheme.labelLarge?.copyWith(
+                color: theme.colorScheme.primary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const _SupabaseAccountTile(),
+            const SizedBox(height: 24),
+            const Divider(),
+            const SizedBox(height: 16),
+          ],
           Text(
             'GitHub',
             style: theme.textTheme.labelLarge?.copyWith(
@@ -332,6 +348,93 @@ class _ResultRow extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _SupabaseAccountTile extends ConsumerStatefulWidget {
+  const _SupabaseAccountTile();
+
+  @override
+  ConsumerState<_SupabaseAccountTile> createState() =>
+      _SupabaseAccountTileState();
+}
+
+class _SupabaseAccountTileState extends ConsumerState<_SupabaseAccountTile> {
+  bool _loading = false;
+
+  Future<void> _signIn() async {
+    setState(() => _loading = true);
+    try {
+      await Supabase.instance.client.auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo: 'com.osobol.code_ledger://login-callback',
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Sign in failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _signOut() async {
+    setState(() => _loading = true);
+    try {
+      await Supabase.instance.client.auth.signOut();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Sign out failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final session = ref.watch(authProvider).value;
+    final email = session?.user.email;
+
+    if (email != null) {
+      return ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: const Icon(Icons.cloud_done_outlined),
+        title: Text(email),
+        subtitle: const Text('Syncing enabled'),
+        trailing: _loading
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : TextButton(
+                onPressed: _signOut,
+                child: const Text('Sign out'),
+              ),
+      );
+    }
+
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: const Icon(Icons.cloud_off_outlined),
+      title: const Text('Not signed in'),
+      subtitle: const Text('Sign in with Google to enable cloud sync'),
+      trailing: _loading
+          ? const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : TextButton(
+              onPressed: _signIn,
+              child: const Text('Sign in'),
+            ),
     );
   }
 }

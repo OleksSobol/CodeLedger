@@ -5,6 +5,7 @@ import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:printing/printing.dart';
 import '../../../../core/database/app_database.dart';
+import '../../../../core/providers/repository_providers.dart';
 import '../../../../shared/widgets/spacing.dart';
 import '../../../pdf_generation/data/models/pdf_invoice_data.dart';
 import '../../../pdf_generation/data/pdf_generator.dart';
@@ -218,7 +219,7 @@ class _TemplateDesignerPageState extends ConsumerState<TemplateDesignerPage> {
     final now = DateTime.now();
     final sampleProfile = profile ??
         UserProfile(
-          id: 1,
+          id: 'sample-profile',
           businessName: 'Your Business',
           ownerName: 'Your Name',
           showTaxId: true,
@@ -240,7 +241,7 @@ class _TemplateDesignerPageState extends ConsumerState<TemplateDesignerPage> {
         );
 
     final sampleClient = Client(
-      id: 1,
+      id: 'sample-client',
       name: 'Sample Client Co.',
       contactName: 'Jane Smith',
       email: 'jane@example.com',
@@ -256,8 +257,8 @@ class _TemplateDesignerPageState extends ConsumerState<TemplateDesignerPage> {
     );
 
     final sampleInvoice = Invoice(
-      id: 0,
-      clientId: 1,
+      id: 'sample-invoice',
+      clientId: 'sample-client',
       invoiceNumber: 'INV-001',
       status: 'draft',
       issueDate: now,
@@ -279,8 +280,8 @@ class _TemplateDesignerPageState extends ConsumerState<TemplateDesignerPage> {
 
     final sampleLineItems = [
       InvoiceLineItem(
-        id: 1,
-        invoiceId: 0,
+        id: 'item-1',
+        invoiceId: 'sample-invoice',
         sortOrder: 0,
         description: 'Feb 10, 2024 | Frontend development, UI review',
         issueReference: '#42, #43',
@@ -290,8 +291,8 @@ class _TemplateDesignerPageState extends ConsumerState<TemplateDesignerPage> {
         createdAt: now,
       ),
       InvoiceLineItem(
-        id: 2,
-        invoiceId: 0,
+        id: 'item-2',
+        invoiceId: 'sample-invoice',
         sortOrder: 1,
         description: 'Feb 11, 2024 | API integration, testing',
         issueReference: '#44',
@@ -301,8 +302,8 @@ class _TemplateDesignerPageState extends ConsumerState<TemplateDesignerPage> {
         createdAt: now,
       ),
       InvoiceLineItem(
-        id: 3,
-        invoiceId: 0,
+        id: 'item-3',
+        invoiceId: 'sample-invoice',
         sortOrder: 2,
         description: 'Feb 12, 2024 | Bug fixes, code review',
         issueReference: '#45',
@@ -312,8 +313,8 @@ class _TemplateDesignerPageState extends ConsumerState<TemplateDesignerPage> {
         createdAt: now,
       ),
       InvoiceLineItem(
-        id: 4,
-        invoiceId: 0,
+        id: 'item-4',
+        invoiceId: 'sample-invoice',
         sortOrder: 3,
         description: 'Project setup & consulting',
         quantity: 10.5,
@@ -330,7 +331,7 @@ class _TemplateDesignerPageState extends ConsumerState<TemplateDesignerPage> {
       profile: sampleProfile,
       template: template,
       lineItems: sampleLineItems,
-      projectNames: {1: 'Website Redesign'},
+      projectNames: {'sample-project': 'Website Redesign'},
     );
 
     final doc = await PdfGenerator.generateInvoice(data);
@@ -365,7 +366,7 @@ class _TemplateDesignerPageState extends ConsumerState<TemplateDesignerPage> {
                     .duplicateTemplate(
                         _currentTemplate(), '${_nameCtrl.text} (Copy)');
                 if (mounted) {
-                  final dao = ref.read(invoiceTemplateDaoProvider);
+                  final dao = ref.read(invoiceTemplateRepositoryProvider);
                   final newTemplate = await dao.getById(id);
                   if (newTemplate != null && mounted) {
                     nav.pop();

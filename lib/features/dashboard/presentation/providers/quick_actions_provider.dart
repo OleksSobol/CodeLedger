@@ -7,8 +7,8 @@ const _settingsKey = 'dashboard_quick_actions';
 
 /// A persisted quick action button on the home screen.
 class QuickAction {
-  final int clientId;
-  final int? projectId;
+  final String clientId;
+  final String? projectId;
   final String label;
   final String? description;
 
@@ -27,8 +27,8 @@ class QuickAction {
       };
 
   factory QuickAction.fromJson(Map<String, dynamic> json) => QuickAction(
-        clientId: json['clientId'] as int,
-        projectId: json['projectId'] as int?,
+        clientId: json['clientId'].toString(),
+        projectId: json['projectId']?.toString(),
         label: json['label'] as String,
         description: json['description'] as String?,
       );

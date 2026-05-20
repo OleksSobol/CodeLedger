@@ -14,8 +14,7 @@ import '../widgets/time_summary_bar.dart';
 import '../widgets/manual_entry_sheet.dart';
 import '../widgets/tag_filter_bar.dart';
 import '../widgets/company_filter_bar.dart';
-import '../../../clients/presentation/providers/client_providers.dart';
-import '../../../projects/presentation/providers/project_providers.dart';
+import '../../../../core/providers/repository_providers.dart';
 import '../../../export/presentation/providers/export_providers.dart';
 
 class TimeTrackingPage extends ConsumerWidget {
@@ -156,7 +155,7 @@ class TimeTrackingPage extends ConsumerWidget {
   Future<void> _exportCsv(BuildContext context, WidgetRef ref) async {
     try {
       final filter = ref.read(dateRangeFilterProvider);
-      final timeDao = ref.read(timeEntryDaoProvider);
+      final timeDao = ref.read(timeEntryRepositoryProvider);
       final entries = await timeDao.getAllEntries(
         from: filter.start,
         to: filter.end,
@@ -172,11 +171,11 @@ class TimeTrackingPage extends ConsumerWidget {
       }
 
       // Resolve client and project names
-      final clientDao = ref.read(clientDaoProvider);
-      final projectDao = ref.read(projectDaoProvider);
+      final clientDao = ref.read(clientRepositoryProvider);
+      final projectDao = ref.read(projectRepositoryProvider);
 
       final clientIds = entries.map((e) => e.clientId).toSet();
-      final clientNames = <int, String>{};
+      final clientNames = <String, String>{};
       for (final id in clientIds) {
         try {
           final c = await clientDao.getClient(id);
@@ -187,8 +186,8 @@ class TimeTrackingPage extends ConsumerWidget {
       }
 
       final projectIds =
-          entries.map((e) => e.projectId).whereType<int>().toSet();
-      final projectNames = <int, String>{};
+          entries.map((e) => e.projectId).whereType<String>().toSet();
+      final projectNames = <String, String>{};
       for (final id in projectIds) {
         try {
           final p = await projectDao.getProject(id);

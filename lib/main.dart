@@ -2,11 +2,18 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'app.dart';
+import 'core/constants/supabase_constants.dart';
 
 void main() {
-  runZonedGuarded(() {
+  runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
+
+    await Supabase.initialize(
+      url: supabaseUrl,
+      anonKey: supabaseAnonKey,
+    );
 
     // Catch Flutter framework errors (layout, rendering, etc.)
     FlutterError.onError = (details) {
@@ -29,7 +36,7 @@ void main() {
         child: CodeLedgerApp(),
       ),
     );
-  }, (error, stack) {
+  }, (error, stack) async {
     if (kDebugMode) {
       debugPrint('Uncaught error: $error\n$stack');
     }

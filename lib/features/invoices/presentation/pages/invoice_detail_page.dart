@@ -10,11 +10,11 @@ import '../providers/invoice_providers.dart';
 import '../utils/line_item_format.dart';
 import '../widgets/invoice_status_badge.dart';
 import '../widgets/record_payment_dialog.dart';
+import '../../../../core/providers/repository_providers.dart';
 import '../../../clients/presentation/providers/client_providers.dart';
 import '../../../pdf_generation/presentation/pages/pdf_preview_page.dart';
 import '../../../pdf_generation/presentation/providers/pdf_providers.dart';
 import '../../../email/presentation/providers/email_providers.dart';
-import '../../../profile/presentation/providers/profile_provider.dart';
 
 // ── Edit Line Item Bottom Sheet ────────────────────────────────────
 
@@ -22,7 +22,7 @@ Future<void> showEditLineItemSheet(
   BuildContext context,
   WidgetRef ref,
   InvoiceLineItem item,
-  int invoiceId,
+  String invoiceId,
 ) {
   return showModalBottomSheet(
     context: context,
@@ -38,7 +38,7 @@ Future<void> showEditLineItemSheet(
 
 class _EditLineItemSheet extends StatefulWidget {
   final InvoiceLineItem item;
-  final int invoiceId;
+  final String invoiceId;
   final WidgetRef ref;
 
   const _EditLineItemSheet({
@@ -171,7 +171,7 @@ class _EditLineItemSheetState extends State<_EditLineItemSheet> {
 }
 
 class InvoiceDetailPage extends ConsumerWidget {
-  final int invoiceId;
+  final String invoiceId;
   const InvoiceDetailPage({super.key, required this.invoiceId});
 
   @override
@@ -239,7 +239,7 @@ class InvoiceDetailPage extends ConsumerWidget {
       await file.writeAsBytes(bytes);
 
       // Build email subject from profile format
-      final profile = await ref.read(userProfileDaoProvider).getProfile();
+      final profile = await ref.read(userProfileRepositoryProvider).getProfile();
       final subject = profile.defaultEmailSubjectFormat
           .replaceAll('{number}', invoice.invoiceNumber)
           .replaceAll('{client}', '')
@@ -248,8 +248,8 @@ class InvoiceDetailPage extends ConsumerWidget {
               : '');
 
       // Get client email
-      final clientDao = ref.read(clientDaoProvider);
-      final client = await clientDao.getClient(invoice.clientId);
+      final clientRepo = ref.read(clientRepositoryProvider);
+      final client = await clientRepo.getClient(invoice.clientId);
       final recipients = <String>[if (client.email != null) client.email!];
 
       // Send

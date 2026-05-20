@@ -125,7 +125,7 @@ class ModernDeveloperTemplate extends BaseInvoiceTemplate {
     }
 
     // Group time items by project
-    final byProject = <int?, List<InvoiceLineItem>>{};
+    final byProject = <String?, List<InvoiceLineItem>>{};
     for (final item in timeItems) {
       byProject.putIfAbsent(item.projectId, () => []).add(item);
     }

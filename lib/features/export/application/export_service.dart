@@ -8,8 +8,8 @@ import '../../reports/data/models/tax_report_data.dart';
 class ExportService {
   Future<File> generateTimeEntriesCsv({
     required List<TimeEntry> entries,
-    required Map<int, String> projectNames,
-    required Map<int, String> clientNames,
+    required Map<String, String> projectNames,
+    required Map<String, String> clientNames,
   }) async {
     final rows = <List<dynamic>>[];
     
