@@ -6,6 +6,7 @@ import '../../../../core/database/app_database.dart';
 import '../../../../core/utils/tag_utils.dart';
 import '../../../clients/presentation/providers/client_providers.dart';
 import '../../../projects/presentation/providers/project_providers.dart';
+import '../../../../core/database/daos/time_entry_dao.dart';
 import '../providers/time_entry_providers.dart';
 
 class ManualEntryPage extends ConsumerStatefulWidget {
@@ -103,6 +104,21 @@ class _ManualEntryPageState extends ConsumerState<ManualEntryPage> {
           );
       ref.invalidate(allTagsProvider);
       if (mounted) context.pop();
+    } on OverlappingTimeEntryException catch (e) {
+      if (mounted) {
+        final timeFmt = DateFormat.jm();
+        final overlap = e.existing;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Overlaps with existing entry: '
+              '${timeFmt.format(overlap.startTime)} – '
+              '${timeFmt.format(overlap.endTime!)}',
+            ),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
