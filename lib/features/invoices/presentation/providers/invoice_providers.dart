@@ -365,12 +365,18 @@ class InvoiceNotifier extends AsyncNotifier<void> {
     await _invoiceDao.archiveInvoice(invoiceId);
     ref.invalidate(allInvoicesProvider);
     ref.invalidate(invoiceDetailProvider(invoiceId));
+    ref.invalidate(outstandingInvoicesProvider);
+    ref.invalidate(overdueInvoicesProvider);
+    ref.invalidate(monthlyIncomeProvider);
   }
 
   Future<void> unarchiveInvoice(String invoiceId) async {
     await _invoiceDao.unarchiveInvoice(invoiceId);
     ref.invalidate(allInvoicesProvider);
     ref.invalidate(invoiceDetailProvider(invoiceId));
+    ref.invalidate(outstandingInvoicesProvider);
+    ref.invalidate(overdueInvoicesProvider);
+    ref.invalidate(monthlyIncomeProvider);
   }
 
   Future<void> updateDraftInvoice({
