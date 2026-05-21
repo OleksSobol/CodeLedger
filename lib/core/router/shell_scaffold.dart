@@ -45,6 +45,11 @@ class ShellScaffold extends ConsumerWidget {
                   label: Text('Invoices'),
                 ),
                 NavigationRailDestination(
+                  icon: Icon(Icons.savings_outlined),
+                  selectedIcon: Icon(Icons.savings),
+                  label: Text('Expenses'),
+                ),
+                NavigationRailDestination(
                   icon: Icon(Icons.settings_outlined),
                   selectedIcon: Icon(Icons.settings),
                   label: Text('Settings'),
@@ -84,6 +89,11 @@ class ShellScaffold extends ConsumerWidget {
             icon: Icon(Icons.receipt_long_outlined),
             selectedIcon: Icon(Icons.receipt_long),
             label: 'Invoices',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.savings_outlined),
+            selectedIcon: Icon(Icons.savings),
+            label: 'Expenses',
           ),
           NavigationDestination(
             icon: Icon(Icons.settings_outlined),
@@ -141,6 +151,13 @@ class ShellScaffold extends ConsumerWidget {
           onPressed: () => context.push('/invoices/create'),
           icon: const Icon(Icons.add),
           label: const Text('New Invoice'),
+        );
+      case 3:
+        // Expenses: Add Expense
+        return FloatingActionButton.extended(
+          onPressed: () => context.push('/expenses/add'),
+          icon: const Icon(Icons.add),
+          label: const Text('Add Expense'),
         );
       default:
         return null;

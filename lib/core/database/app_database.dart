@@ -14,6 +14,7 @@ import 'tables/invoices_table.dart';
 import 'tables/invoice_line_items_table.dart';
 import 'tables/invoice_templates_table.dart';
 import 'tables/app_settings_table.dart';
+import 'tables/expenses_table.dart';
 
 part 'app_database.g.dart';
 
@@ -26,6 +27,7 @@ part 'app_database.g.dart';
   InvoiceLineItems,
   InvoiceTemplates,
   AppSettings,
+  Expenses,
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
@@ -34,7 +36,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -72,6 +74,9 @@ class AppDatabase extends _$AppDatabase {
           }
           if (from < 5) {
             await _migrateIntPksToUuids(m);
+          }
+          if (from < 6) {
+            await m.createTable(expenses);
           }
         },
       );
@@ -124,6 +129,7 @@ class AppDatabase extends _$AppDatabase {
       await delete(userProfiles).go();
       await delete(clients).go();
       await delete(invoiceTemplates).go();
+      await delete(expenses).go();
       await _seedDefaults();
     });
   }

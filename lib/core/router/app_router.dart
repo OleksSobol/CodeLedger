@@ -29,11 +29,14 @@ import '../../features/settings/presentation/pages/accounts_settings_page.dart';
 import '../../features/reports/presentation/pages/taxes_page.dart';
 import '../../features/reports/presentation/pages/wa_excise_report_page.dart';
 import '../../features/github/presentation/pages/github_sync_preview_page.dart';
+import '../../features/expenses/presentation/pages/expenses_page.dart';
+import '../../features/expenses/presentation/pages/expense_form_page.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 final _homeNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'home');
 final _timeNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'time');
 final _invoicesNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'invoices');
+final _expensesNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'expenses');
 final _settingsNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'settings');
 
 final appRouter = GoRouter(
@@ -80,7 +83,19 @@ final appRouter = GoRouter(
           ],
         ),
 
-        // Branch 3: Settings
+        // Branch 3: Expenses
+        StatefulShellBranch(
+          navigatorKey: _expensesNavigatorKey,
+          routes: [
+            GoRoute(
+              path: '/expenses',
+              name: 'expenses',
+              builder: (context, state) => const ExpensesPage(),
+            ),
+          ],
+        ),
+
+        // Branch 4: Settings
         StatefulShellBranch(
           navigatorKey: _settingsNavigatorKey,
           routes: [
@@ -280,6 +295,21 @@ final appRouter = GoRouter(
       name: 'waExcise',
       parentNavigatorKey: _rootNavigatorKey,
       builder: (context, state) => const WaExciseReportPage(),
+    ),
+    GoRoute(
+      path: '/expenses/add',
+      name: 'expenseAdd',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => const ExpenseFormPage(),
+    ),
+    GoRoute(
+      path: '/expenses/edit',
+      name: 'expenseEdit',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) {
+        final expense = state.extra as Expense;
+        return ExpenseFormPage(expense: expense);
+      },
     ),
     GoRoute(
       path: '/backup',
