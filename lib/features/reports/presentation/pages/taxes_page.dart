@@ -19,6 +19,7 @@ import '../../../export/presentation/providers/export_providers.dart';
 import '../../../invoices/presentation/providers/invoice_providers.dart';
 import '../../data/models/tax_report_data.dart';
 import '../../data/templates/tax_report_template.dart';
+import '../../../expenses/presentation/providers/expense_providers.dart';
 
 // ── Receipts model (stored as JSON via AppSettingsDao) ─────────────────────────
 
@@ -387,6 +388,10 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
 
     // Live income/tax totals from allInvoicesProvider
     final allInvoices = ref.watch(allInvoicesProvider).value ?? [];
+    final allExpenses = ref.watch(expensesProvider).value ?? [];
+    final reportYear = _dateRange?.start.year ?? DateTime.now().year;
+    final recurringAnnualDeductible =
+        annualDeductibleForYear(allExpenses, reportYear);
     final endOfDay = _dateRange == null
         ? DateTime.now()
         : DateTime(
@@ -511,7 +516,8 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
         const SizedBox(height: 12),
 
         // ── Quarterly estimated taxes ──────────────────────────────────────
-        _buildQuarterlyCards(theme, allInvoices, cur),
+        _buildQuarterlyCards(theme, allInvoices, cur,
+            recurringAnnualDeductible: recurringAnnualDeductible),
         const SizedBox(height: 12),
 
         // ── Tax rate settings ──────────────────────────────────────────────
@@ -688,7 +694,7 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                     ],
                   ),
                 ),
-            ],
+          ],
           ),
         ),
 
@@ -771,6 +777,36 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                       ],
                     );
                   }(),
+                ],
+                if (recurringAnnualDeductible > 0) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surfaceContainerLowest,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.repeat_outlined,
+                            size: 16,
+                            color: theme.colorScheme.primary),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Recurring expenses (Expenses tab): '
+                            '${cur.format(recurringAnnualDeductible)}'
+                            '/yr — included in quarterly estimates.',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                                color:
+                                    theme.colorScheme.onSurfaceVariant),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ],
             ),
@@ -929,9 +965,11 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
   // ── Quarterly cards ───────────────────────────────────────────────────────────
 
   Widget _buildQuarterlyCards(
-      ThemeData theme, List<Invoice> allInvoices, NumberFormat cur) {
+      ThemeData theme, List<Invoice> allInvoices, NumberFormat cur,
+      {double recurringAnnualDeductible = 0}) {
     final year = _dateRange?.start.year ?? DateTime.now().year;
-    final totalExpenses = _receipts.fold(0.0, (sum, r) => sum + r.amount);
+    final adHocExpenses = _receipts.fold(0.0, (sum, r) => sum + r.amount);
+    final totalExpenses = adHocExpenses + recurringAnnualDeductible;
     final now = DateTime.now();
 
     // IRS estimated quarterly payment schedule
