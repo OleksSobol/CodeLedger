@@ -1,18 +1,21 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../repositories/client_repository.dart';
+import '../repositories/expense_repository.dart';
 import '../repositories/project_repository.dart';
 import '../repositories/time_entry_repository.dart';
 import '../repositories/invoice_repository.dart';
 import '../repositories/invoice_template_repository.dart';
 import '../repositories/user_profile_repository.dart';
 import '../repositories/drift/drift_client_repository.dart';
+import '../repositories/drift/drift_expense_repository.dart';
 import '../repositories/drift/drift_project_repository.dart';
 import '../repositories/drift/drift_time_entry_repository.dart';
 import '../repositories/drift/drift_invoice_repository.dart';
 import '../repositories/drift/drift_invoice_template_repository.dart';
 import '../repositories/drift/drift_user_profile_repository.dart';
 import '../repositories/supabase/supabase_client_repository.dart';
+import '../repositories/supabase/supabase_expense_repository.dart';
 import '../repositories/supabase/supabase_project_repository.dart';
 import '../repositories/supabase/supabase_time_entry_repository.dart';
 import '../repositories/supabase/supabase_invoice_repository.dart';
@@ -64,4 +67,11 @@ final userProfileRepositoryProvider = Provider<UserProfileRepository>((ref) {
     return SupabaseUserProfileRepository(ref.watch(supabaseProvider));
   }
   return DriftUserProfileRepository(ref.watch(userProfileDaoProvider));
+});
+
+final expenseRepositoryProvider = Provider<ExpenseRepository>((ref) {
+  if (kIsWeb) {
+    return SupabaseExpenseRepository(ref.watch(supabaseProvider));
+  }
+  return DriftExpenseRepository(ref.watch(expenseDaoProvider));
 });

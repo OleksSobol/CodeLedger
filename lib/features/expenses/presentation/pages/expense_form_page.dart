@@ -5,9 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 import '../../../../core/database/app_database.dart';
-import '../../../../core/database/daos/expense_dao.dart';
 import '../../../../core/database/tables/expenses_table.dart';
-import '../../../../core/providers/dao_providers.dart';
+import '../../../../core/providers/repository_providers.dart';
 
 class ExpenseFormPage extends ConsumerStatefulWidget {
   final Expense? expense; // null = add, non-null = edit
@@ -108,7 +107,7 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
     try {
-      final dao = ref.read(expenseDaoProvider);
+      final repo = ref.read(expenseRepositoryProvider);
       final companion = ExpensesCompanion(
         id: Value(widget.expense?.id ?? const Uuid().v4()),
         name: Value(_nameCtrl.text.trim()),
@@ -138,9 +137,9 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
       );
 
       if (widget.expense == null) {
-        await dao.insertExpense(companion);
+        await repo.insertExpense(companion);
       } else {
-        await dao.updateExpense(companion);
+        await repo.updateExpense(companion);
       }
 
       if (mounted) Navigator.pop(context);
@@ -464,7 +463,7 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
                   child: OutlinedButton.icon(
                     icon: const Icon(Icons.calendar_today_outlined, size: 18),
                     label: Text(
-                        'Start: ${DateFormat('MMM d, yyyy').format(_startDate)}'),
+                        'Start: \${DateFormat('MMM d, yyyy').format(_startDate)}'),
                     onPressed: () => _pickDate(isStart: true),
                   ),
                 ),
@@ -474,7 +473,7 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
                     icon: const Icon(Icons.event_outlined, size: 18),
                     label: Text(_endDate == null
                         ? 'End: Ongoing'
-                        : 'End: ${DateFormat('MMM d, yyyy').format(_endDate!)}'),
+                        : 'End: \${DateFormat('MMM d, yyyy').format(_endDate!)}'),
                     onPressed: () async {
                       if (_endDate != null) {
                         setState(() => _endDate = null);
@@ -564,7 +563,7 @@ class _PreviewCard extends StatelessWidget {
                   style: theme.textTheme.labelSmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant)),
               Text(
-                '$pct%',
+                '\$pct%',
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w600,
                   color: theme.colorScheme.secondary,
