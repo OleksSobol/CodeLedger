@@ -6,6 +6,7 @@ import '../../../../core/providers/repository_providers.dart';
 import '../../../../core/repositories/time_entry_repository.dart';
 import '../../../../core/utils/rate_resolver.dart';
 import '../../../../core/utils/tag_utils.dart';
+import '../../../dashboard/presentation/providers/dashboard_provider.dart';
 
 final runningEntryProvider = StreamProvider<TimeEntry?>((ref) {
   return ref.watch(timeEntryRepositoryProvider).watchRunningEntry();
@@ -170,12 +171,16 @@ class TimerNotifier extends AsyncNotifier<void> {
     String entryId, {
     String? description,
     bool truncateOverlaps = false,
-  }) {
-    return _dao.clockOut(
+  }) async {
+    final result = await _dao.clockOut(
       entryId,
       description: description,
       truncateOverlaps: truncateOverlaps,
     );
+    ref.invalidate(lastCompletedEntryProvider);
+    ref.invalidate(weeklyHoursProvider);
+    ref.invalidate(uninvoicedByClientProvider);
+    return result;
   }
 
   Future<bool> updateEntryTimes({
@@ -267,7 +272,7 @@ class TimerNotifier extends AsyncNotifier<void> {
 
     final duration = endTime.difference(startTime).inMinutes;
 
-    return _dao.insertWithOverlapCheck(
+    final id = await _dao.insertWithOverlapCheck(
       TimeEntriesCompanion(
         clientId: Value(clientId),
         projectId: Value(projectId),
@@ -282,9 +287,18 @@ class TimerNotifier extends AsyncNotifier<void> {
         tags: Value(tags),
       ),
     );
+    ref.invalidate(lastCompletedEntryProvider);
+    ref.invalidate(weeklyHoursProvider);
+    ref.invalidate(uninvoicedByClientProvider);
+    return id;
   }
 
-  Future<void> deleteEntry(String entryId) => _dao.deleteEntry(entryId);
+  Future<void> deleteEntry(String entryId) async {
+    await _dao.deleteEntry(entryId);
+    ref.invalidate(lastCompletedEntryProvider);
+    ref.invalidate(weeklyHoursProvider);
+    ref.invalidate(uninvoicedByClientProvider);
+  }
 
   Future<bool> updateEntry(
           String entryId, TimeEntriesCompanion companion) =>
