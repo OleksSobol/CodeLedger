@@ -17,6 +17,7 @@ import '../../../../core/providers/theme_provider.dart';
 import '../../../clients/presentation/providers/client_providers.dart';
 import '../../../export/presentation/providers/export_providers.dart';
 import '../../../invoices/presentation/providers/invoice_providers.dart';
+import '../../../expenses/presentation/providers/expense_providers.dart';
 import '../../data/models/tax_report_data.dart';
 import '../../data/templates/tax_report_template.dart';
 
@@ -931,7 +932,14 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
   Widget _buildQuarterlyCards(
       ThemeData theme, List<Invoice> allInvoices, NumberFormat cur) {
     final year = _dateRange?.start.year ?? DateTime.now().year;
-    final totalExpenses = _receipts.fold(0.0, (sum, r) => sum + r.amount);
+    // Only deductible receipts count toward tax deductions
+    final receiptDeductible = _receipts
+        .where((r) => r.isTaxDeductible)
+        .fold(0.0, (sum, r) => sum + r.amount);
+    // Recurring expenses from the Expenses tab, prorated for the selected year
+    final allExpenses = ref.watch(expensesProvider).value ?? [];
+    final recurringAnnualDeductible = annualDeductibleForYear(allExpenses, year);
+    final totalExpenses = receiptDeductible + recurringAnnualDeductible;
     final now = DateTime.now();
 
     // IRS estimated quarterly payment schedule
@@ -1020,7 +1028,7 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                     const SizedBox(height: 8),
                     _SummaryRow('Gross income', cur.format(gross), theme),
                     if (expAlloc > 0)
-                      _SummaryRow('Expenses (÷4)',
+                      _SummaryRow('Deductions (÷4)',
                           '− ${cur.format(expAlloc)}', theme),
                     _SummaryRow('Net income', cur.format(net), theme,
                         bold: true),
