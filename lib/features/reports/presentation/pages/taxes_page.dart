@@ -16,6 +16,7 @@ import '../../../../core/providers/repository_providers.dart';
 import '../../../../core/providers/theme_provider.dart';
 import '../../../clients/presentation/providers/client_providers.dart';
 import '../../../export/presentation/providers/export_providers.dart';
+import '../../../expenses/presentation/providers/expense_providers.dart';
 import '../../../invoices/presentation/providers/invoice_providers.dart';
 import '../../data/models/tax_report_data.dart';
 import '../../data/templates/tax_report_template.dart';
@@ -384,6 +385,7 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
   Widget _buildFederalTab() {
     final clientsAsync = ref.watch(activeClientsProvider);
     final theme = Theme.of(context);
+    final monthlyRecurring = ref.watch(totalMonthlyDeductibleProvider);
 
     // Live income/tax totals from allInvoicesProvider
     final allInvoices = ref.watch(allInvoicesProvider).value ?? [];
@@ -511,7 +513,7 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
         const SizedBox(height: 12),
 
         // ── Quarterly estimated taxes ──────────────────────────────────────
-        _buildQuarterlyCards(theme, allInvoices, cur),
+        _buildQuarterlyCards(theme, allInvoices, cur, monthlyRecurring),
         const SizedBox(height: 12),
 
         // ── Tax rate settings ──────────────────────────────────────────────
@@ -929,7 +931,8 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
   // ── Quarterly cards ───────────────────────────────────────────────────────────
 
   Widget _buildQuarterlyCards(
-      ThemeData theme, List<Invoice> allInvoices, NumberFormat cur) {
+      ThemeData theme, List<Invoice> allInvoices, NumberFormat cur,
+      double monthlyRecurring) {
     final year = _dateRange?.start.year ?? DateTime.now().year;
     final totalExpenses = _receipts.fold(0.0, (sum, r) => sum + r.amount);
     final now = DateTime.now();
@@ -963,9 +966,12 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
         ),
         ...quarters.map((q) {
           final gross = _incomeForRange(allInvoices, q.start, q.end);
-          // Prorate annual expenses evenly across 4 quarters
+          // Prorate annual one-off receipts evenly across 4 quarters
           final expAlloc = totalExpenses / 4;
-          final net = (gross - expAlloc).clamp(0.0, double.infinity);
+          // Recurring expenses from Expenses tab: 3 months per quarter
+          final recurringAlloc = monthlyRecurring * 3;
+          final totalExpAlloc = expAlloc + recurringAlloc;
+          final net = (gross - totalExpAlloc).clamp(0.0, double.infinity);
 
           // IRS SE tax: net × 92.35% × seRate
           final seBase = net * 0.9235;
@@ -1020,8 +1026,11 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                     const SizedBox(height: 8),
                     _SummaryRow('Gross income', cur.format(gross), theme),
                     if (expAlloc > 0)
-                      _SummaryRow('Expenses (÷4)',
+                      _SummaryRow('Receipts (÷4)',
                           '− ${cur.format(expAlloc)}', theme),
+                    if (recurringAlloc > 0)
+                      _SummaryRow('Recurring expenses',
+                          '− ${cur.format(recurringAlloc)}', theme),
                     _SummaryRow('Net income', cur.format(net), theme,
                         bold: true),
                     const Divider(height: 12),
@@ -1139,6 +1148,7 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final cur = NumberFormat.currency(symbol: '\$');
+    final monthlyRecurring = ref.watch(totalMonthlyDeductibleProvider);
     final allInvoices = ref.watch(allInvoicesProvider).value ?? [];
 
     // YTD income from paid/archived invoices
@@ -1266,10 +1276,14 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _guideExpensesCtrl,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Business expenses (software, hardware…)',
-                    prefixText: '\$',
-                    border: OutlineInputBorder(),
+                    prefixText: '\$ ',
+                    border: const OutlineInputBorder(),
+                    helperText: monthlyRecurring > 0
+                        ? 'Tracked in Expenses tab: '
+                            '${cur.format(monthlyRecurring * 12)}/yr'
+                        : null,
                   ),
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
