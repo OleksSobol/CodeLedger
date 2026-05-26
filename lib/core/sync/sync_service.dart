@@ -91,6 +91,7 @@ class SyncService {
     await _upsertBatch('invoice_templates', await _templateRows());
     await _upsertBatch('invoices', await _invoiceRows());
     await _upsertBatch('invoice_line_items', await _lineItemRows());
+    await _upsertBatch('expenses', await _expenseRows());
   }
 
   Future<void> _upsertBatch(String table, List<Map<String, dynamic>> rows) async {
@@ -298,6 +299,28 @@ class SyncService {
     }).toList();
   }
 
+  Future<List<Map<String, dynamic>>> _expenseRows() async {
+    final rows = await _db.select(_db.expenses).get();
+    return rows.map((e) => {
+      'id': e.id,
+      'user_id': _uid,
+      'name': e.name,
+      'category': e.category,
+      'amount': e.amount,
+      'frequency': e.frequency,
+      'deduction_method': e.deductionMethod,
+      'manual_percentage': e.manualPercentage,
+      'work_hours_per_day': e.workHoursPerDay,
+      'total_hours_per_day': e.totalHoursPerDay,
+      'work_space_sqft': e.workSpaceSqft,
+      'total_space_sqft': e.totalSpaceSqft,
+      'start_date': e.startDate.toUtc().toIso8601String(),
+      'end_date': e.endDate?.toUtc().toIso8601String(),
+      'notes': e.notes,
+      'created_at': e.createdAt.toUtc().toIso8601String(),
+    }).toList();
+  }
+
   // ── Download (Supabase → Drift) ─────────────────────────────────────────
 
   Future<void> _download() async {
@@ -310,6 +333,7 @@ class SyncService {
     // Time entries before line items (FK dependency)
     await _downloadTimeEntries();
     await _downloadLineItems();
+    await _downloadExpenses();
   }
 
   Future<void> _downloadProfiles() async {
@@ -540,6 +564,33 @@ class SyncService {
             timeEntryId: Value(r['time_entry_id'] as String?),
             projectId: Value(r['project_id'] as String?),
             issueReference: Value(r['issue_reference'] as String?),
+            createdAt: Value(DateTime.parse(r['created_at'] as String)),
+          ),
+        );
+      }
+    });
+  }
+
+  Future<void> _downloadExpenses() async {
+    final rows = await _supabase.from('expenses').select().eq('user_id', _uid);
+    await _db.transaction(() async {
+      for (final r in rows) {
+        await _db.into(_db.expenses).insertOnConflictUpdate(
+          ExpensesCompanion(
+            id: Value(r['id'] as String),
+            name: Value(r['name'] as String),
+            category: Value(r['category'] as String? ?? 'other'),
+            amount: Value((r['amount'] as num).toDouble()),
+            frequency: Value(r['frequency'] as String? ?? 'monthly'),
+            deductionMethod: Value(r['deduction_method'] as String? ?? 'manual'),
+            manualPercentage: Value((r['manual_percentage'] as num?)?.toDouble()),
+            workHoursPerDay: Value((r['work_hours_per_day'] as num?)?.toDouble()),
+            totalHoursPerDay: Value((r['total_hours_per_day'] as num?)?.toDouble()),
+            workSpaceSqft: Value((r['work_space_sqft'] as num?)?.toDouble()),
+            totalSpaceSqft: Value((r['total_space_sqft'] as num?)?.toDouble()),
+            startDate: Value(DateTime.parse(r['start_date'] as String)),
+            endDate: Value(r['end_date'] != null ? DateTime.parse(r['end_date'] as String) : null),
+            notes: Value(r['notes'] as String?),
             createdAt: Value(DateTime.parse(r['created_at'] as String)),
           ),
         );
