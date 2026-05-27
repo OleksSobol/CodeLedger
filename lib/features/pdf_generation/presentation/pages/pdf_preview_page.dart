@@ -137,10 +137,12 @@ class _PdfPreviewPageState extends ConsumerState<PdfPreviewPage> {
           '${dir.path}/${invoice.invoiceNumber.replaceAll(RegExp(r'[^\w]'), '_')}.pdf');
       await file.writeAsBytes(bytes);
 
+      final clientRepo = ref.read(clientRepositoryProvider);
+      final client = await clientRepo.getClient(invoice.clientId);
       final profile = await ref.read(userProfileRepositoryProvider).getProfile();
       final subject = profile.defaultEmailSubjectFormat
           .replaceAll('{number}', invoice.invoiceNumber)
-          .replaceAll('{client}', '')
+          .replaceAll('{client}', client.name)
           .replaceAll(
             '{period}',
             invoice.periodStart != null
@@ -148,8 +150,6 @@ class _PdfPreviewPageState extends ConsumerState<PdfPreviewPage> {
                 : '',
           );
 
-      final clientRepo = ref.read(clientRepositoryProvider);
-      final client = await clientRepo.getClient(invoice.clientId);
       final recipients = <String>[if (client.email != null) client.email!];
 
       final emailService = ref.read(emailServiceProvider);
