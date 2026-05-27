@@ -184,11 +184,13 @@ class _DraftCardState extends ConsumerState<_DraftCard> {
           '${dir.path}/${invoice.invoiceNumber.replaceAll(RegExp(r'[^\w]'), '_')}.pdf');
       await file.writeAsBytes(bytes);
 
+      final client =
+          await ref.read(clientRepositoryProvider).getClient(invoice.clientId);
       final profile =
           await ref.read(userProfileRepositoryProvider).getProfile();
       final subject = profile.defaultEmailSubjectFormat
           .replaceAll('{number}', invoice.invoiceNumber)
-          .replaceAll('{client}', '')
+          .replaceAll('{client}', client.name)
           .replaceAll(
               '{period}',
               invoice.periodStart != null && invoice.periodEnd != null
@@ -196,8 +198,6 @@ class _DraftCardState extends ConsumerState<_DraftCard> {
                       '${DateFormat.yMMMd().format(invoice.periodEnd!)}'
                   : '');
 
-      final client =
-          await ref.read(clientRepositoryProvider).getClient(invoice.clientId);
       final recipients =
           <String>[if (client.email != null) client.email!];
 

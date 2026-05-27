@@ -238,19 +238,19 @@ class InvoiceDetailPage extends ConsumerWidget {
           '${dir.path}/${invoice.invoiceNumber.replaceAll(RegExp(r'[^\w]'), '_')}.pdf');
       await file.writeAsBytes(bytes);
 
+      // Get client (needed for both email recipient and subject {client} token)
+      final clientRepo = ref.read(clientRepositoryProvider);
+      final client = await clientRepo.getClient(invoice.clientId);
+      final recipients = <String>[if (client.email != null) client.email!];
+
       // Build email subject from profile format
       final profile = await ref.read(userProfileRepositoryProvider).getProfile();
       final subject = profile.defaultEmailSubjectFormat
           .replaceAll('{number}', invoice.invoiceNumber)
-          .replaceAll('{client}', '')
+          .replaceAll('{client}', client.name)
           .replaceAll('{period}', invoice.periodStart != null
               ? '${DateFormat.yMMMd().format(invoice.periodStart!)} - ${DateFormat.yMMMd().format(invoice.periodEnd!)}'
               : '');
-
-      // Get client email
-      final clientRepo = ref.read(clientRepositoryProvider);
-      final client = await clientRepo.getClient(invoice.clientId);
-      final recipients = <String>[if (client.email != null) client.email!];
 
       // Send
       final emailService = ref.read(emailServiceProvider);
