@@ -32,19 +32,21 @@ class ExpenseDao extends DatabaseAccessor<AppDatabase>
 /// Business logic helpers for an [Expense] row.
 extension ExpenseCalc on Expense {
   double get deductibleFraction {
+    double raw;
     switch (deductionMethod) {
       case 'hours':
         final total = totalHoursPerDay ?? 24.0;
         if (total == 0) return 0;
-        return (workHoursPerDay ?? 0) / total;
+        raw = (workHoursPerDay ?? 0) / total;
       case 'space':
         final total = totalSpaceSqft ?? 0.0;
         if (total == 0) return 0;
-        return (workSpaceSqft ?? 0) / total;
+        raw = (workSpaceSqft ?? 0) / total;
       case 'manual':
       default:
-        return (manualPercentage ?? 0) / 100;
+        raw = (manualPercentage ?? 0) / 100;
     }
+    return raw.clamp(0.0, 1.0);
   }
 
   double get monthlyAmount =>
