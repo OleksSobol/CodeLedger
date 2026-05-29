@@ -3,6 +3,7 @@ import 'package:csv/csv.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../../../core/database/app_database.dart';
+import '../../../../core/database/daos/expense_dao.dart';
 import '../../reports/data/models/tax_report_data.dart';
 
 class ExportService {
@@ -58,6 +59,55 @@ class ExportService {
     final filename = 'time_entries_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.csv';
     final file = File('${dir.path}/$filename');
     
+    await file.writeAsString(csv);
+    return file;
+  }
+
+  Future<File> generateExpensesCsv({required List<Expense> expenses}) async {
+    final rows = <List<dynamic>>[];
+    rows.add([
+      'Name',
+      'Category',
+      'Amount',
+      'Frequency',
+      'Monthly Amount',
+      'Deduction Method',
+      'Deduction %',
+      'Monthly Deductible',
+      'Annual Deductible',
+      'Start Date',
+      'End Date',
+      'Active',
+      'Notes',
+    ]);
+
+    final dateFmt = DateFormat('yyyy-MM-dd');
+    final numFmt = NumberFormat('0.00');
+
+    for (final e in expenses) {
+      final pct = (e.deductibleFraction * 100).toStringAsFixed(1);
+      rows.add([
+        e.name,
+        e.category,
+        numFmt.format(e.amount),
+        e.frequency,
+        numFmt.format(e.monthlyAmount),
+        e.deductionMethod,
+        '$pct%',
+        numFmt.format(e.monthlyDeductible),
+        numFmt.format(e.annualDeductible),
+        dateFmt.format(e.startDate),
+        e.endDate != null ? dateFmt.format(e.endDate!) : 'Ongoing',
+        e.isActiveNow ? 'Yes' : 'No',
+        e.notes ?? '',
+      ]);
+    }
+
+    final csv = const CsvEncoder().convert(rows);
+    final dir = await getTemporaryDirectory();
+    final filename =
+        'expenses_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.csv';
+    final file = File('${dir.path}/$filename');
     await file.writeAsString(csv);
     return file;
   }
