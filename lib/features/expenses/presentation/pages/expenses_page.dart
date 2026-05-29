@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../core/database/daos/expense_dao.dart';
 import '../../../../core/database/tables/expenses_table.dart';
 import '../../../../core/providers/dao_providers.dart';
 import '../../../../shared/widgets/app_page_scaffold.dart';
+import '../../../export/presentation/providers/export_providers.dart';
 import '../providers/expense_providers.dart';
 
 class ExpensesPage extends ConsumerWidget {
@@ -21,6 +23,11 @@ class ExpensesPage extends ConsumerWidget {
     return AppPageScaffold(
       title: 'Expenses',
       actions: [
+        IconButton(
+          icon: const Icon(Icons.download_outlined),
+          onPressed: () => _exportCsv(context, ref),
+          tooltip: 'Export CSV',
+        ),
         IconButton(
           icon: const Icon(Icons.add),
           onPressed: () => context.push('/expenses/add'),
@@ -53,6 +60,30 @@ class ExpensesPage extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _exportCsv(BuildContext context, WidgetRef ref) async {
+    final expenses = ref.read(expensesProvider).value ?? [];
+    if (expenses.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No expenses to export')),
+      );
+      return;
+    }
+    try {
+      final service = ref.read(exportServiceProvider);
+      final file = await service.generateExpensesCsv(expenses: expenses);
+      if (!context.mounted) return;
+      await SharePlus.instance.share(ShareParams(
+        files: [XFile(file.path, mimeType: 'text/csv')],
+        subject: 'Expenses export',
+      ));
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Export failed: $e')));
+      }
+    }
   }
 
   Future<void> _delete(
