@@ -18,6 +18,13 @@ final totalMonthlyDeductibleProvider = Provider<double>((ref) {
       .fold(0.0, (sum, e) => sum + e.monthlyDeductible);
 });
 
+/// Actual deductible for the current calendar year, prorated by each
+/// expense's start/end dates via [annualDeductibleForYear].
+final thisYearDeductibleProvider = Provider<double>((ref) {
+  final all = ref.watch(expensesProvider).value ?? [];
+  return annualDeductibleForYear(all, DateTime.now().year);
+});
+
 /// Annual deductible for a given calendar year across all active expenses.
 double annualDeductibleForYear(List<Expense> expenses, int year) {
   double total = 0;

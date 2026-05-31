@@ -16,6 +16,7 @@ class ExpensesPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final expensesAsync = ref.watch(expensesProvider);
     final totalMonthly = ref.watch(totalMonthlyDeductibleProvider);
+    final yearlyDeductible = ref.watch(thisYearDeductibleProvider);
     final fmt = NumberFormat.currency(symbol: '\$');
 
     return AppPageScaffold(
@@ -29,7 +30,10 @@ class ExpensesPage extends ConsumerWidget {
       ],
       body: Column(
         children: [
-          _SummaryCard(totalMonthly: totalMonthly, fmt: fmt),
+          _SummaryCard(
+              totalMonthly: totalMonthly,
+              yearlyDeductible: yearlyDeductible,
+              fmt: fmt),
           Expanded(
             child: expensesAsync.when(
               loading: () =>
@@ -81,9 +85,14 @@ class ExpensesPage extends ConsumerWidget {
 
 class _SummaryCard extends StatelessWidget {
   final double totalMonthly;
+  final double yearlyDeductible;
   final NumberFormat fmt;
 
-  const _SummaryCard({required this.totalMonthly, required this.fmt});
+  const _SummaryCard({
+    required this.totalMonthly,
+    required this.yearlyDeductible,
+    required this.fmt,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -122,13 +131,13 @@ class _SummaryCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                'Annual',
+                'This year',
                 style: theme.textTheme.labelSmall?.copyWith(
                   color: theme.colorScheme.onPrimaryContainer,
                 ),
               ),
               Text(
-                fmt.format(totalMonthly * 12),
+                fmt.format(yearlyDeductible),
                 style: theme.textTheme.titleMedium?.copyWith(
                   color: theme.colorScheme.onPrimaryContainer,
                   fontWeight: FontWeight.w600,
