@@ -17,6 +17,7 @@ import '../../../../core/providers/theme_provider.dart';
 import '../../../clients/presentation/providers/client_providers.dart';
 import '../../../export/presentation/providers/export_providers.dart';
 import '../../../invoices/presentation/providers/invoice_providers.dart';
+import '../../../expenses/presentation/providers/expense_providers.dart';
 import '../../data/models/tax_report_data.dart';
 import '../../data/templates/tax_report_template.dart';
 
@@ -439,7 +440,7 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                     child: Text(
                       _dateRange == null
                           ? 'Select dates'
-                          : '${_fmt(_dateRange!.start)} - ${_fmt(_dateRange!.end)}',
+                          : '\${_fmt(_dateRange!.start)} - \${_fmt(_dateRange!.end)}',
                     ),
                   ),
                 ),
@@ -575,7 +576,7 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                       : 0.0;
                   return Text(
                     monthly > 0
-                        ? '${cur.format(monthly)}/mo · ${cur.format(monthly * 12)}/yr'
+                        ? '\${cur.format(monthly)}/mo · \${cur.format(monthly * 12)}/yr'
                         : 'Enter rent to calculate',
                     style: theme.textTheme.bodySmall,
                   );
@@ -655,7 +656,7 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                             children: [
                               _SummaryRow(
                                   'Office fraction',
-                                  '${(frac * 100).toStringAsFixed(0)}%'
+                                  '\${(frac * 100).toStringAsFixed(0)}%'
                                   ' ($_homeOfficeWorkRooms/$_homeOfficeTotalRooms)',
                                   theme),
                               _SummaryRow('Monthly deduction',
@@ -667,7 +668,7 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                                 const SizedBox(height: 4),
                                 Text(
                                   'Est. tax savings: '
-                                  '${cur.format(annual * (_federalRate + _seRate * 0.9235 * 0.5))}',
+                                  '\${cur.format(annual * (_federalRate + _seRate * 0.9235 * 0.5))}',
                                   style: theme.textTheme.bodySmall?.copyWith(
                                       color: const Color(0xFF2E7D32),
                                       fontWeight: FontWeight.w600),
@@ -816,8 +817,8 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
       title: Text(r.description),
       subtitle: Text(
         r.isTaxDeductible
-            ? '${r.category} · ${r.date}'
-            : '${r.category} · ${r.date} · Non-deductible',
+            ? '\${r.category} · \${r.date}'
+            : '\${r.category} · \${r.date} · Non-deductible',
         style: theme.textTheme.bodySmall,
       ),
       trailing: Row(
@@ -931,23 +932,28 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
   Widget _buildQuarterlyCards(
       ThemeData theme, List<Invoice> allInvoices, NumberFormat cur) {
     final year = _dateRange?.start.year ?? DateTime.now().year;
-    final totalExpenses = _receipts.fold(0.0, (sum, r) => sum + r.amount);
+    // Only sum receipts explicitly marked as tax-deductible.
+    final totalReceiptDeductions = _receipts
+        .where((r) => r.isTaxDeductible)
+        .fold(0.0, (sum, r) => sum + r.amount);
+    // Include recurring deductible expenses from the Expenses tab.
+    final monthlyRecurring = ref.watch(totalMonthlyDeductibleProvider);
     final now = DateTime.now();
 
-    // IRS estimated quarterly payment schedule
-    final quarters = <({String label, String dates, DateTime start, DateTime end, DateTime due})>[
+    // IRS estimated quarterly payment schedule; months = calendar months in each period.
+    final quarters = <({String label, String dates, DateTime start, DateTime end, DateTime due, int months})>[
       (label: 'Q1', dates: 'Jan 1 – Mar 31',
         start: DateTime(year, 1, 1), end: DateTime(year, 4, 1),
-        due: DateTime(year, 4, 15)),
+        due: DateTime(year, 4, 15), months: 3),
       (label: 'Q2', dates: 'Apr 1 – May 31',
         start: DateTime(year, 4, 1), end: DateTime(year, 6, 1),
-        due: DateTime(year, 6, 15)),
+        due: DateTime(year, 6, 15), months: 2),
       (label: 'Q3', dates: 'Jun 1 – Aug 31',
         start: DateTime(year, 6, 1), end: DateTime(year, 9, 1),
-        due: DateTime(year, 9, 15)),
+        due: DateTime(year, 9, 15), months: 3),
       (label: 'Q4', dates: 'Sep 1 – Dec 31',
         start: DateTime(year, 9, 1), end: DateTime(year + 1, 1, 1),
-        due: DateTime(year + 1, 1, 15)),
+        due: DateTime(year + 1, 1, 15), months: 4),
     ];
 
     return Column(
@@ -963,8 +969,9 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
         ),
         ...quarters.map((q) {
           final gross = _incomeForRange(allInvoices, q.start, q.end);
-          // Prorate annual expenses evenly across 4 quarters
-          final expAlloc = totalExpenses / 4;
+          final receiptAlloc = totalReceiptDeductions / 4;
+          final recurringAlloc = monthlyRecurring * q.months;
+          final expAlloc = receiptAlloc + recurringAlloc;
           final net = (gross - expAlloc).clamp(0.0, double.infinity);
 
           // IRS SE tax: net × 92.35% × seRate
@@ -996,13 +1003,13 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                   Row(children: [
                     Expanded(
                       child: Text(
-                        '${q.label} — ${q.dates}',
+                        '\${q.label} — \${q.dates}',
                         style: theme.textTheme.titleSmall
                             ?.copyWith(fontWeight: FontWeight.bold),
                       ),
                     ),
                     Text(
-                      'Due ${DateFormat.MMMd().format(q.due)}',
+                      'Due \${DateFormat.MMMd().format(q.due)}',
                       style: theme.textTheme.bodySmall?.copyWith(
                           color: dueColor, fontWeight: FontWeight.w600),
                     ),
@@ -1019,18 +1026,21 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                   else ...[
                     const SizedBox(height: 8),
                     _SummaryRow('Gross income', cur.format(gross), theme),
-                    if (expAlloc > 0)
-                      _SummaryRow('Expenses (÷4)',
-                          '− ${cur.format(expAlloc)}', theme),
+                    if (receiptAlloc > 0)
+                      _SummaryRow('Receipts (÷4)',
+                          '− \${cur.format(receiptAlloc)}', theme),
+                    if (recurringAlloc > 0)
+                      _SummaryRow('Recurring (×\${q.months}mo)',
+                          '− \${cur.format(recurringAlloc)}', theme),
                     _SummaryRow('Net income', cur.format(net), theme,
                         bold: true),
                     const Divider(height: 12),
                     _SummaryRow(
-                        'SE tax (${(_seRate * 100).toStringAsFixed(1)}%)',
+                        'SE tax (\${(_seRate * 100).toStringAsFixed(1)}%)',
                         cur.format(seTax),
                         theme),
                     _SummaryRow(
-                        'Federal (${(_federalRate * 100).toStringAsFixed(1)}%)',
+                        'Federal (\${(_federalRate * 100).toStringAsFixed(1)}%)',
                         cur.format(fedTax),
                         theme),
                     const SizedBox(height: 2),
@@ -1054,8 +1064,8 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
           ListTile(
             title: const Text('Tax Rate Settings'),
             subtitle: Text(
-              'Federal ${_federalRateCtrl.text}%  ·  '
-              'SE ${_seRateCtrl.text}%',
+              'Federal \${_federalRateCtrl.text}%  ·  '
+              'SE \${_seRateCtrl.text}%',
               style: theme.textTheme.bodySmall,
             ),
             trailing: Icon(_showTaxRateSettings
@@ -1191,8 +1201,8 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                   ]),
                   const SizedBox(height: 8),
                   Text(
-                    'Based on your ${now.year} income so far '
-                    '(${cur.format(ytdIncome)}):',
+                    'Based on your \${now.year} income so far '
+                    '(\${cur.format(ytdIncome)}):',
                     style: theme.textTheme.bodySmall
                         ?.copyWith(color: cs.onPrimaryContainer),
                   ),
@@ -1282,18 +1292,18 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                   _SummaryRow(
                       'Annual income', cur.format(annualIncome), theme),
                   _SummaryRow('Business expenses',
-                      '− ${cur.format(annualExpenses)}', theme),
+                      '− \${cur.format(annualExpenses)}', theme),
                   _SummaryRow('Taxable profit',
                       cur.format(taxableProfit), theme,
                       bold: true),
                   const Divider(height: 16),
                   _SummaryRow(
-                      'SE tax (${(_seRate * 100).toStringAsFixed(1)}%)',
+                      'SE tax (\${(_seRate * 100).toStringAsFixed(1)}%)',
                       cur.format(seTax),
                       theme),
                   _SummaryRow(
                       'Federal income tax '
-                      '(${(_federalRate * 100).toStringAsFixed(1)}%)',
+                      '(\${(_federalRate * 100).toStringAsFixed(1)}%)',
                       cur.format(fedTax),
                       theme),
                   const SizedBox(height: 4),
@@ -1313,8 +1323,8 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'Set aside ~${cur.format(totalEst / 4)} per quarter'
-                          ' (${annualIncome > 0 ? (totalEst / annualIncome * 100).toStringAsFixed(0) : 0}%'
+                          'Set aside ~\${cur.format(totalEst / 4)} per quarter'
+                          ' (\${annualIncome > 0 ? (totalEst / annualIncome * 100).toStringAsFixed(0) : 0}%'
                           ' of income).',
                           style: theme.textTheme.bodySmall
                               ?.copyWith(color: cs.onSurfaceVariant),
@@ -1339,7 +1349,7 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                 Row(children: [
                   const Icon(Icons.calendar_today_outlined),
                   const SizedBox(width: 8),
-                  Text('${now.year} Payment Schedule',
+                  Text('\${now.year} Payment Schedule',
                       style: theme.textTheme.titleSmall
                           ?.copyWith(fontWeight: FontWeight.bold)),
                 ]),
@@ -1679,7 +1689,7 @@ class _PdfPreviewPage extends StatelessWidget {
 
   Future<void> _share() async {
     final dir = await Directory.systemTemp.createTemp('taxreport_');
-    final file = File('${dir.path}/Tax_Report.pdf');
+    final file = File('\${dir.path}/Tax_Report.pdf');
     await file.writeAsBytes(pdfBytes);
     await SharePlus.instance.share(
       ShareParams(
@@ -1762,7 +1772,7 @@ class _ExpenseSheetState extends State<_ExpenseSheet> {
           ? p.extension(file.path)
           : '.jpg';
       final dest = p.join(receiptsDir.path,
-          '${DateTime.now().millisecondsSinceEpoch}$ext');
+          '\${DateTime.now().millisecondsSinceEpoch}$ext');
       await File(file.path).copy(dest);
 
       setState(() => _imagePath = dest);
@@ -2055,7 +2065,7 @@ class _DueDateRow extends StatelessWidget {
                   ?.copyWith(color: isPast ? theme.colorScheme.onSurfaceVariant : null)),
         ),
         Text(
-          'Due ${DateFormat.MMMd().format(due)}',
+          'Due \${DateFormat.MMMd().format(due)}',
           style: theme.textTheme.bodySmall
               ?.copyWith(color: color, fontWeight: FontWeight.w600),
         ),
