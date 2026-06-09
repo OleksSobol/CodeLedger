@@ -19,6 +19,7 @@ import '../../../export/presentation/providers/export_providers.dart';
 import '../../../invoices/presentation/providers/invoice_providers.dart';
 import '../../data/models/tax_report_data.dart';
 import '../../data/templates/tax_report_template.dart';
+import '../../../expenses/presentation/providers/expense_providers.dart';
 
 // ── Receipts model (stored as JSON via AppSettingsDao) ─────────────────────────
 
@@ -931,23 +932,26 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
   Widget _buildQuarterlyCards(
       ThemeData theme, List<Invoice> allInvoices, NumberFormat cur) {
     final year = _dateRange?.start.year ?? DateTime.now().year;
-    final totalExpenses = _receipts.fold(0.0, (sum, r) => sum + r.amount);
+    final totalExpenses = _receipts
+        .where((r) => r.isTaxDeductible)
+        .fold(0.0, (sum, r) => sum + r.amount);
+    final monthlyDeductible = ref.watch(totalMonthlyDeductibleProvider);
     final now = DateTime.now();
 
     // IRS estimated quarterly payment schedule
-    final quarters = <({String label, String dates, DateTime start, DateTime end, DateTime due})>[
+    final quarters = <({String label, String dates, DateTime start, DateTime end, DateTime due, int months})>[
       (label: 'Q1', dates: 'Jan 1 – Mar 31',
         start: DateTime(year, 1, 1), end: DateTime(year, 4, 1),
-        due: DateTime(year, 4, 15)),
+        due: DateTime(year, 4, 15), months: 3),
       (label: 'Q2', dates: 'Apr 1 – May 31',
         start: DateTime(year, 4, 1), end: DateTime(year, 6, 1),
-        due: DateTime(year, 6, 15)),
+        due: DateTime(year, 6, 15), months: 2),
       (label: 'Q3', dates: 'Jun 1 – Aug 31',
         start: DateTime(year, 6, 1), end: DateTime(year, 9, 1),
-        due: DateTime(year, 9, 15)),
+        due: DateTime(year, 9, 15), months: 3),
       (label: 'Q4', dates: 'Sep 1 – Dec 31',
         start: DateTime(year, 9, 1), end: DateTime(year + 1, 1, 1),
-        due: DateTime(year + 1, 1, 15)),
+        due: DateTime(year + 1, 1, 15), months: 4),
     ];
 
     return Column(
@@ -963,8 +967,11 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
         ),
         ...quarters.map((q) {
           final gross = _incomeForRange(allInvoices, q.start, q.end);
-          // Prorate annual expenses evenly across 4 quarters
-          final expAlloc = totalExpenses / 4;
+          // Prorate annual receipt deductions evenly across 4 quarters
+          final receiptAlloc = totalExpenses / 4;
+          // Recurring deductible expenses for the exact months in this quarter
+          final recurringAlloc = monthlyDeductible * q.months;
+          final expAlloc = receiptAlloc + recurringAlloc;
           final net = (gross - expAlloc).clamp(0.0, double.infinity);
 
           // IRS SE tax: net × 92.35% × seRate
@@ -1019,9 +1026,12 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                   else ...[
                     const SizedBox(height: 8),
                     _SummaryRow('Gross income', cur.format(gross), theme),
-                    if (expAlloc > 0)
-                      _SummaryRow('Expenses (÷4)',
-                          '− ${cur.format(expAlloc)}', theme),
+                    if (receiptAlloc > 0)
+                      _SummaryRow('Receipts (÷4)',
+                          '− ${cur.format(receiptAlloc)}', theme),
+                    if (recurringAlloc > 0)
+                      _SummaryRow('Recurring (${q.months}mo)',
+                          '− ${cur.format(recurringAlloc)}', theme),
                     _SummaryRow('Net income', cur.format(net), theme,
                         bold: true),
                     const Divider(height: 12),
