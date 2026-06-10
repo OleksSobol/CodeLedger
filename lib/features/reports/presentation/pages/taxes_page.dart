@@ -19,6 +19,7 @@ import '../../../export/presentation/providers/export_providers.dart';
 import '../../../invoices/presentation/providers/invoice_providers.dart';
 import '../../data/models/tax_report_data.dart';
 import '../../data/templates/tax_report_template.dart';
+import '../../../expenses/presentation/providers/expense_providers.dart';
 
 // ── Receipts model (stored as JSON via AppSettingsDao) ─────────────────────────
 
@@ -931,7 +932,10 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
   Widget _buildQuarterlyCards(
       ThemeData theme, List<Invoice> allInvoices, NumberFormat cur) {
     final year = _dateRange?.start.year ?? DateTime.now().year;
-    final totalExpenses = _receipts.fold(0.0, (sum, r) => sum + r.amount);
+    final totalDeductibleReceipts = _receipts
+        .where((r) => r.isTaxDeductible)
+        .fold(0.0, (sum, r) => sum + r.amount);
+    final monthlyDeductible = ref.watch(totalMonthlyDeductibleProvider);
     final now = DateTime.now();
 
     // IRS estimated quarterly payment schedule
@@ -963,8 +967,12 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
         ),
         ...quarters.map((q) {
           final gross = _incomeForRange(allInvoices, q.start, q.end);
-          // Prorate annual expenses evenly across 4 quarters
-          final expAlloc = totalExpenses / 4;
+          final receiptAlloc = totalDeductibleReceipts / 4;
+          final qMonths = (q.end.year - q.start.year) * 12 +
+              q.end.month -
+              q.start.month;
+          final recurringAlloc = monthlyDeductible * qMonths;
+          final expAlloc = receiptAlloc + recurringAlloc;
           final net = (gross - expAlloc).clamp(0.0, double.infinity);
 
           // IRS SE tax: net × 92.35% × seRate
@@ -1019,9 +1027,12 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                   else ...[
                     const SizedBox(height: 8),
                     _SummaryRow('Gross income', cur.format(gross), theme),
-                    if (expAlloc > 0)
-                      _SummaryRow('Expenses (÷4)',
-                          '− ${cur.format(expAlloc)}', theme),
+                    if (receiptAlloc > 0)
+                      _SummaryRow('Receipts (÷4)',
+                          '− ${cur.format(receiptAlloc)}', theme),
+                    if (recurringAlloc > 0)
+                      _SummaryRow('Recurring (×$qMonths mo)',
+                          '− ${cur.format(recurringAlloc)}', theme),
                     _SummaryRow('Net income', cur.format(net), theme,
                         bold: true),
                     const Divider(height: 12),
