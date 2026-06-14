@@ -1,10 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/database/app_database.dart';
-import '../../../../core/database/daos/expense_dao.dart';
-import '../../../../core/providers/dao_providers.dart';
+import '../../../../core/providers/repository_providers.dart';
 
 final expensesProvider = StreamProvider<List<Expense>>((ref) {
-  return ref.watch(expenseDaoProvider).watchAll();
+  return ref.watch(expenseRepositoryProvider).watchAll();
 });
 
 final activeExpensesProvider = Provider<List<Expense>>((ref) {
@@ -31,7 +30,6 @@ double annualDeductibleForYear(List<Expense> expenses, int year) {
   final start = DateTime(year, 1, 1);
   final end = DateTime(year, 12, 31);
   for (final e in expenses) {
-    // Count months the expense was active during the year
     final effectiveStart =
         e.startDate.isAfter(start) ? e.startDate : start;
     final effectiveEnd =
