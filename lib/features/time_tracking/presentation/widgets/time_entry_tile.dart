@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/database/app_database.dart';
+import '../../../../core/database/daos/time_entry_dao.dart';
 import '../../../../core/utils/currency_formatter.dart';
 import '../../../../core/utils/duration_formatter.dart';
 import '../../../../core/utils/tag_utils.dart';
@@ -64,7 +65,7 @@ class TimeEntryTile extends ConsumerWidget {
         }
         // Swipe right = duplicate
         if (direction == DismissDirection.startToEnd) {
-          _duplicateEntry(context, ref);
+          await _duplicateEntry(context, ref);
           return false; // Don't dismiss, just duplicate
         }
         return false;
@@ -92,7 +93,7 @@ class TimeEntryTile extends ConsumerWidget {
     );
   }
 
-  void _duplicateEntry(BuildContext context, WidgetRef ref) {
+  Future<void> _duplicateEntry(BuildContext context, WidgetRef ref) async {
     final now = DateTime.now();
     final duration = entry.endTime?.difference(entry.startTime);
     final start = DateTime(now.year, now.month, now.day,
@@ -101,20 +102,43 @@ class TimeEntryTile extends ConsumerWidget {
 
     if (end == null) return;
 
-    ref.read(timerNotifierProvider.notifier).addManualEntry(
-          clientId: entry.clientId,
-          projectId: entry.projectId,
-          startTime: start,
-          endTime: end,
-          description: entry.description,
-          issueReference: entry.issueReference,
-          repository: entry.repository,
-          tags: entry.tags,
+    try {
+      await ref.read(timerNotifierProvider.notifier).addManualEntry(
+            clientId: entry.clientId,
+            projectId: entry.projectId,
+            startTime: start,
+            endTime: end,
+            description: entry.description,
+            issueReference: entry.issueReference,
+            repository: entry.repository,
+            tags: entry.tags,
+          );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Entry duplicated to today')),
         );
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Entry duplicated to today')),
-    );
+      }
+    } on OverlappingTimeEntryException catch (e) {
+      if (context.mounted) {
+        final timeFmt = DateFormat.jm();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Could not duplicate: overlaps with entry '
+              '${timeFmt.format(e.existing.startTime)} - '
+              '${timeFmt.format(e.existing.endTime!)}',
+            ),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error duplicating entry: $e')),
+        );
+      }
+    }
   }
 
   void _showActionSheet(BuildContext context, WidgetRef ref) {
