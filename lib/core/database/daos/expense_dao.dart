@@ -36,14 +36,14 @@ extension ExpenseCalc on Expense {
       case 'hours':
         final total = totalHoursPerDay ?? 24.0;
         if (total == 0) return 0;
-        return (workHoursPerDay ?? 0) / total;
+        return ((workHoursPerDay ?? 0) / total).clamp(0.0, 1.0);
       case 'space':
         final total = totalSpaceSqft ?? 0.0;
         if (total == 0) return 0;
-        return (workSpaceSqft ?? 0) / total;
+        return ((workSpaceSqft ?? 0) / total).clamp(0.0, 1.0);
       case 'manual':
       default:
-        return (manualPercentage ?? 0) / 100;
+        return ((manualPercentage ?? 0) / 100).clamp(0.0, 1.0);
     }
   }
 

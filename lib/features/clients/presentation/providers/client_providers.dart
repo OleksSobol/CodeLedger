@@ -3,6 +3,7 @@ import 'package:drift/drift.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../core/providers/repository_providers.dart';
 import '../../../../core/repositories/client_repository.dart';
+import '../../../../core/repositories/project_repository.dart';
 
 final activeClientsProvider = StreamProvider<List<Client>>((ref) {
   return ref.watch(clientRepositoryProvider).watchActiveClients();
@@ -51,10 +52,12 @@ final clientNotifierProvider =
 
 class ClientNotifier extends AsyncNotifier<List<Client>> {
   late ClientRepository _dao;
+  late ProjectRepository _projectRepo;
 
   @override
   Future<List<Client>> build() async {
     _dao = ref.watch(clientRepositoryProvider);
+    _projectRepo = ref.watch(projectRepositoryProvider);
     return _dao.getActiveClients();
   }
 
@@ -118,7 +121,10 @@ class ClientNotifier extends AsyncNotifier<List<Client>> {
     return result;
   }
 
-  Future<bool> hasLinkedRecords(String id) => _dao.hasLinkedRecords(id);
+  Future<bool> hasLinkedRecords(String id) async {
+    if (await _dao.hasLinkedRecords(id)) return true;
+    return _projectRepo.hasProjectsForClient(id);
+  }
 
   Future<void> deleteClient(String id) async {
     await _dao.deleteClient(id);

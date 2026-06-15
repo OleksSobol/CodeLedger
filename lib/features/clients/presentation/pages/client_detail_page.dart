@@ -85,7 +85,7 @@ class ClientDetailPage extends ConsumerWidget {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text(
-                              'Cannot delete: client has time entries or invoices. Archive instead.'),
+                              'Cannot delete: client has time entries, invoices, or projects. Archive instead.'),
                         ),
                       );
                       return;

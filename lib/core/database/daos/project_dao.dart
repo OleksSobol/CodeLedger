@@ -26,6 +26,14 @@ class ProjectDao extends DatabaseAccessor<AppDatabase>
         .get();
   }
 
+  Future<bool> hasProjectsForClient(String clientId) async {
+    final rows = await (select(projects)
+          ..where((t) => t.clientId.equals(clientId))
+          ..limit(1))
+        .get();
+    return rows.isNotEmpty;
+  }
+
   Stream<List<Project>> watchAllActiveProjects() {
     return (select(projects)
           ..where((t) => t.isActive.equals(true) & t.isArchived.equals(false))
