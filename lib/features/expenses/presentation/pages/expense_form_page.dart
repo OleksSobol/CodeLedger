@@ -364,6 +364,12 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
                       ],
                       validator: (v) {
                         if (v == null || v.isEmpty) return 'Required';
+                        final work = double.tryParse(v);
+                        if (work == null || work <= 0) return 'Must be > 0';
+                        if (work > 24) return 'Cannot exceed 24 h';
+                        final total =
+                            double.tryParse(_totalHoursCtrl.text) ?? 24;
+                        if (work > total) return 'Cannot exceed total hours';
                         return null;
                       },
                       onChanged: (_) => setState(() {}),
@@ -383,6 +389,13 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
                         FilteringTextInputFormatter.allow(
                             RegExp(r'^\d*\.?\d*'))
                       ],
+                      validator: (v) {
+                        if (v == null || v.isEmpty) return 'Required';
+                        final total = double.tryParse(v);
+                        if (total == null || total <= 0) return 'Must be > 0';
+                        if (total > 24) return 'Cannot exceed 24 h';
+                        return null;
+                      },
                       onChanged: (_) => setState(() {}),
                     ),
                   ),
@@ -414,6 +427,13 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
                       ],
                       validator: (v) {
                         if (v == null || v.isEmpty) return 'Required';
+                        final work = double.tryParse(v);
+                        if (work == null || work <= 0) return 'Must be > 0';
+                        final total =
+                            double.tryParse(_totalSqftCtrl.text) ?? 0;
+                        if (total > 0 && work > total) {
+                          return 'Cannot exceed total area';
+                        }
                         return null;
                       },
                       onChanged: (_) => setState(() {}),
@@ -434,6 +454,8 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
                       ],
                       validator: (v) {
                         if (v == null || v.isEmpty) return 'Required';
+                        final total = double.tryParse(v);
+                        if (total == null || total <= 0) return 'Must be > 0';
                         return null;
                       },
                       onChanged: (_) => setState(() {}),
@@ -463,7 +485,7 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
                   child: OutlinedButton.icon(
                     icon: const Icon(Icons.calendar_today_outlined, size: 18),
                     label: Text(
-                        'Start: \${DateFormat('MMM d, yyyy').format(_startDate)}'),
+                        'Start: \${DateFormat(\'MMM d, yyyy\').format(_startDate)}'),
                     onPressed: () => _pickDate(isStart: true),
                   ),
                 ),
@@ -473,12 +495,8 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
                     icon: const Icon(Icons.event_outlined, size: 18),
                     label: Text(_endDate == null
                         ? 'End: Ongoing'
-                        : 'End: \${DateFormat('MMM d, yyyy').format(_endDate!)}'),
+                        : 'End: \${DateFormat(\'MMM d, yyyy\').format(_endDate!)}'),
                     onPressed: () async {
-                      if (_endDate != null) {
-                        setState(() => _endDate = null);
-                        return;
-                      }
                       await _pickDate(isStart: false);
                     },
                   ),

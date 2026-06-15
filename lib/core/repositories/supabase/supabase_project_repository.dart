@@ -38,6 +38,16 @@ class SupabaseProjectRepository implements ProjectRepository {
   }
 
   @override
+  Future<bool> hasProjectsForClient(String clientId) async {
+    final rows = await _client
+        .from('projects')
+        .select('id')
+        .eq('client_id', clientId)
+        .limit(1);
+    return rows.isNotEmpty;
+  }
+
+  @override
   Stream<List<Project>> watchAllActiveProjects() =>
       Stream.fromFuture(_fetchAllActive());
 
