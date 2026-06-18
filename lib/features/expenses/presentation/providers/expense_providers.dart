@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/database/app_database.dart';
+import '../../../../core/database/daos/expense_dao.dart';
 import '../../../../core/providers/repository_providers.dart';
 
 final expensesProvider = StreamProvider<List<Expense>>((ref) {
