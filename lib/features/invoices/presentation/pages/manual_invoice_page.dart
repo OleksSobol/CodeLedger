@@ -10,6 +10,7 @@ import '../../../../core/providers/database_provider.dart';
 import '../../../../core/providers/repository_providers.dart';
 import '../../../../shared/widgets/spacing.dart';
 import '../../../clients/presentation/providers/client_providers.dart';
+import '../../../dashboard/presentation/providers/dashboard_provider.dart';
 import '../providers/invoice_providers.dart';
 
 class ManualInvoicePage extends ConsumerStatefulWidget {
@@ -142,6 +143,8 @@ class _ManualInvoicePageState extends ConsumerState<ManualInvoicePage> {
       }
 
       ref.invalidate(allInvoicesProvider);
+      ref.invalidate(monthlyIncomeProvider);
+      ref.invalidate(uninvoicedByClientProvider);
 
       if (!mounted) return;
       context.pop();
@@ -173,7 +176,7 @@ class _ManualInvoicePageState extends ConsumerState<ManualInvoicePage> {
           padding: EdgeInsets.fromLTRB(
               Spacing.md, Spacing.md, Spacing.md, Spacing.md + bottomInset),
           children: [
-            // ── Client ───────────────────────────────────────────────
+            // ── Client ────────────────────────────────────────────
             clientsAsync.when(
               loading: () => const LinearProgressIndicator(),
               error: (e, _) => Text('Error: $e'),
@@ -193,7 +196,7 @@ class _ManualInvoicePageState extends ConsumerState<ManualInvoicePage> {
             ),
             const SizedBox(height: Spacing.md),
 
-            // ── Invoice number ────────────────────────────────────────
+            // ── Invoice number ────────────────────────────────────
             TextFormField(
               controller: _invoiceNumberCtrl,
               decoration: const InputDecoration(
@@ -206,7 +209,7 @@ class _ManualInvoicePageState extends ConsumerState<ManualInvoicePage> {
             ),
             const SizedBox(height: Spacing.md),
 
-            // ── Dates row ─────────────────────────────────────────────
+            // ── Dates row ────────────────────────────────────────
             Row(
               children: [
                 Expanded(
@@ -240,7 +243,7 @@ class _ManualInvoicePageState extends ConsumerState<ManualInvoicePage> {
             ),
             const SizedBox(height: Spacing.md),
 
-            // ── Status + Currency row ─────────────────────────────────
+            // ── Status + Currency row ───────────────────────────
             Row(
               children: [
                 Expanded(
@@ -281,7 +284,7 @@ class _ManualInvoicePageState extends ConsumerState<ManualInvoicePage> {
             ),
             const SizedBox(height: Spacing.md),
 
-            // ── Subtotal ──────────────────────────────────────────────
+            // ── Subtotal ──────────────────────────────────────────
             TextFormField(
               controller: _subtotalCtrl,
               decoration: const InputDecoration(
@@ -305,7 +308,7 @@ class _ManualInvoicePageState extends ConsumerState<ManualInvoicePage> {
             ),
             const SizedBox(height: Spacing.md),
 
-            // ── Tax rate ──────────────────────────────────────────────
+            // ── Tax rate ──────────────────────────────────────────
             TextFormField(
               controller: _taxRateCtrl,
               decoration: const InputDecoration(
@@ -330,7 +333,7 @@ class _ManualInvoicePageState extends ConsumerState<ManualInvoicePage> {
             ),
             const SizedBox(height: Spacing.md),
 
-            // ── Computed totals card ──────────────────────────────────
+            // ── Computed totals card ─────────────────────────────
             if (_subtotalCtrl.text.isNotEmpty) ...[
               Card(
                 color: theme.colorScheme.surfaceContainerHighest,
@@ -364,7 +367,7 @@ class _ManualInvoicePageState extends ConsumerState<ManualInvoicePage> {
               const SizedBox(height: Spacing.md),
             ],
 
-            // ── Notes ─────────────────────────────────────────────────
+            // ── Notes ──────────────────────────────────────────────
             TextFormField(
               controller: _notesCtrl,
               decoration: const InputDecoration(
@@ -378,7 +381,7 @@ class _ManualInvoicePageState extends ConsumerState<ManualInvoicePage> {
             ),
             const SizedBox(height: Spacing.xl),
 
-            // ── Save button ───────────────────────────────────────────
+            // ── Save button ─────────────────────────────────────────
             FilledButton.icon(
               onPressed: _isSaving ? null : _save,
               icon: _isSaving

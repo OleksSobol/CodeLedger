@@ -196,7 +196,7 @@ class TimerNotifier extends AsyncNotifier<void> {
     double? hourlyRateSnapshot,
   }) async {
     final duration = endTime.difference(startTime).inMinutes;
-    return _dao.updateWithOverlapCheck(
+    final result = await _dao.updateWithOverlapCheck(
       entryId,
       TimeEntriesCompanion(
         startTime: Value(startTime),
@@ -214,6 +214,9 @@ class TimerNotifier extends AsyncNotifier<void> {
             : const Value.absent(),
       ),
     );
+    ref.invalidate(weeklyHoursProvider);
+    ref.invalidate(uninvoicedByClientProvider);
+    return result;
   }
 
   Future<bool> updateEntryMeta({
@@ -226,7 +229,7 @@ class TimerNotifier extends AsyncNotifier<void> {
     String? tags,
     double? hourlyRateSnapshot,
   }) async {
-    return _dao.updateWithOverlapCheck(
+    final result = await _dao.updateWithOverlapCheck(
       entryId,
       TimeEntriesCompanion(
         projectId: clearProject
@@ -241,6 +244,9 @@ class TimerNotifier extends AsyncNotifier<void> {
             : const Value.absent(),
       ),
     );
+    ref.invalidate(weeklyHoursProvider);
+    ref.invalidate(uninvoicedByClientProvider);
+    return result;
   }
 
   Future<String> addManualEntry({
