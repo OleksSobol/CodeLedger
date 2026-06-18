@@ -5,8 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 import '../../../../core/database/app_database.dart';
+import '../../../../core/database/daos/expense_dao.dart';
 import '../../../../core/database/tables/expenses_table.dart';
-import '../../../../core/providers/repository_providers.dart';
+import '../../../../core/providers/dao_providers.dart';
 
 class ExpenseFormPage extends ConsumerStatefulWidget {
   final Expense? expense; // null = add, non-null = edit
@@ -76,7 +77,7 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
     super.dispose();
   }
 
-  // ── Calculated preview ────────────────────────────────────────────────────
+  // ── Calculated preview ────────────────────────────────────────────
 
   double get _amount => double.tryParse(_amountCtrl.text) ?? 0;
   double get _monthlyAmount =>
@@ -101,13 +102,13 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
 
   double get _monthlyDeductible => _monthlyAmount * _fraction;
 
-  // ── Actions ───────────────────────────────────────────────────────────────
+  // ── Actions ───────────────────────────────────────────────────────
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
     try {
-      final repo = ref.read(expenseRepositoryProvider);
+      final dao = ref.read(expenseDaoProvider);
       final companion = ExpensesCompanion(
         id: Value(widget.expense?.id ?? const Uuid().v4()),
         name: Value(_nameCtrl.text.trim()),
@@ -137,9 +138,9 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
       );
 
       if (widget.expense == null) {
-        await repo.insertExpense(companion);
+        await dao.insertExpense(companion);
       } else {
-        await repo.updateExpense(companion);
+        await dao.updateExpense(companion);
       }
 
       if (mounted) Navigator.pop(context);
@@ -171,7 +172,7 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
     });
   }
 
-  // ── Build ─────────────────────────────────────────────────────────────────
+  // ── Build ─────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -203,7 +204,7 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            // ── Preview card ──────────────────────────────────────────────
+            // ── Preview card ────────────────────────────────────────────
             _PreviewCard(
               monthlyDeductible: _monthlyDeductible,
               fraction: _fraction,
@@ -211,7 +212,7 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
             ),
             const SizedBox(height: 20),
 
-            // ── Name ──────────────────────────────────────────────────────
+            // ── Name ───────────────────────────────────────────────────────
             TextFormField(
               controller: _nameCtrl,
               decoration: const InputDecoration(
@@ -226,7 +227,7 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
             ),
             const SizedBox(height: 12),
 
-            // ── Category ──────────────────────────────────────────────────
+            // ── Category ─────────────────────────────────────────────────
             DropdownButtonFormField<String>(
               value: _category,
               decoration: const InputDecoration(
@@ -243,7 +244,7 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
             ),
             const SizedBox(height: 16),
 
-            // ── Amount + Frequency ────────────────────────────────────────
+            // ── Amount + Frequency ────────────────────────────────────────────
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -297,7 +298,7 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
             ),
             const SizedBox(height: 20),
 
-            // ── Deduction Method ──────────────────────────────────────────
+            // ── Deduction Method ────────────────────────────────────────────
             Text('Tax Deduction Method',
                 style: theme.textTheme.labelLarge
                     ?.copyWith(color: theme.colorScheme.primary)),
@@ -364,12 +365,6 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
                       ],
                       validator: (v) {
                         if (v == null || v.isEmpty) return 'Required';
-                        final work = double.tryParse(v);
-                        if (work == null || work <= 0) return 'Must be > 0';
-                        if (work > 24) return 'Cannot exceed 24 h';
-                        final total =
-                            double.tryParse(_totalHoursCtrl.text) ?? 24;
-                        if (work > total) return 'Cannot exceed total hours';
                         return null;
                       },
                       onChanged: (_) => setState(() {}),
@@ -389,13 +384,6 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
                         FilteringTextInputFormatter.allow(
                             RegExp(r'^\d*\.?\d*'))
                       ],
-                      validator: (v) {
-                        if (v == null || v.isEmpty) return 'Required';
-                        final total = double.tryParse(v);
-                        if (total == null || total <= 0) return 'Must be > 0';
-                        if (total > 24) return 'Cannot exceed 24 h';
-                        return null;
-                      },
                       onChanged: (_) => setState(() {}),
                     ),
                   ),
@@ -427,13 +415,6 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
                       ],
                       validator: (v) {
                         if (v == null || v.isEmpty) return 'Required';
-                        final work = double.tryParse(v);
-                        if (work == null || work <= 0) return 'Must be > 0';
-                        final total =
-                            double.tryParse(_totalSqftCtrl.text) ?? 0;
-                        if (total > 0 && work > total) {
-                          return 'Cannot exceed total area';
-                        }
                         return null;
                       },
                       onChanged: (_) => setState(() {}),
@@ -454,8 +435,6 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
                       ],
                       validator: (v) {
                         if (v == null || v.isEmpty) return 'Required';
-                        final total = double.tryParse(v);
-                        if (total == null || total <= 0) return 'Must be > 0';
                         return null;
                       },
                       onChanged: (_) => setState(() {}),
@@ -485,7 +464,7 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
                   child: OutlinedButton.icon(
                     icon: const Icon(Icons.calendar_today_outlined, size: 18),
                     label: Text(
-                        'Start: \${DateFormat(\'MMM d, yyyy\').format(_startDate)}'),
+                        'Start: ${DateFormat('MMM d, yyyy').format(_startDate)}'),
                     onPressed: () => _pickDate(isStart: true),
                   ),
                 ),
@@ -495,10 +474,8 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
                     icon: const Icon(Icons.event_outlined, size: 18),
                     label: Text(_endDate == null
                         ? 'End: Ongoing'
-                        : 'End: \${DateFormat(\'MMM d, yyyy\').format(_endDate!)}'),
-                    onPressed: () async {
-                      await _pickDate(isStart: false);
-                    },
+                        : 'End: ${DateFormat('MMM d, yyyy').format(_endDate!)}'),
+                    onPressed: () => _pickDate(isStart: false),
                   ),
                 ),
               ],
@@ -513,7 +490,7 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
               ),
             const SizedBox(height: 16),
 
-            // ── Notes ─────────────────────────────────────────────────────
+            // ── Notes ───────────────────────────────────────────────────────
             TextFormField(
               controller: _notesCtrl,
               decoration: const InputDecoration(
@@ -581,7 +558,7 @@ class _PreviewCard extends StatelessWidget {
                   style: theme.textTheme.labelSmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant)),
               Text(
-                '\$pct%',
+                '$pct%',
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w600,
                   color: theme.colorScheme.secondary,
