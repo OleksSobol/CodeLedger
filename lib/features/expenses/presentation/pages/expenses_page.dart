@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../../../core/database/app_database.dart';
+import '../../../../core/database/daos/expense_dao.dart';
 import '../../../../core/database/tables/expenses_table.dart';
 import '../../../../core/providers/repository_providers.dart';
 import '../../../../shared/widgets/app_page_scaffold.dart';
