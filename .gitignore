@@ -53,9 +53,8 @@ app.*.map.json
 # DevTools
 devtools_options.yaml
 
-# Google services credentials
+# Google services credentials (contains real keys — download from Cloud Console)
 **/google-services.json
-lib/core/constants/google_credentials.dart
 
 # Sensitive / environment
 *.env

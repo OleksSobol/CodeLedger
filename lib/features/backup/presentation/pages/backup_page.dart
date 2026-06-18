@@ -158,12 +158,13 @@ class _BackupPageState extends ConsumerState<BackupPage> {
     } catch (e) {
       _setState(const BackupIdle());
       final msg = e.toString();
-      if (msg.contains('10') ||
+      if (msg.contains('clientConfigurationError') ||
+          msg.contains('10') ||
           msg.contains('DEVELOPER_ERROR') ||
           msg.contains('PlatformException')) {
         _showSnack(
-          'Google Sign-In not configured. Add google-services.json '
-          'to android/app/ from Google Cloud Console.',
+          'Google Sign-In not configured. Add google-services.json to '
+          'android/app/ and set GOOGLE_SERVER_CLIENT_ID (Web Client ID).',
         );
       } else {
         _showSnack('Sign-in failed: $msg');
