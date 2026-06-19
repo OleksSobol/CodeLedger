@@ -25,6 +25,7 @@ class _EditTimeEntryPageState extends ConsumerState<EditTimeEntryPage> {
   late final TextEditingController _tagsCtrl;
   late final TextEditingController _rateCtrl;
   late DateTime _date;
+  late DateTime _endDate;
   late TimeOfDay _startTime;
   late TimeOfDay _endTime;
   String? _selectedProjectId;
@@ -45,6 +46,9 @@ class _EditTimeEntryPageState extends ConsumerState<EditTimeEntryPage> {
     _endTime = e.endTime != null
         ? TimeOfDay.fromDateTime(e.endTime!)
         : TimeOfDay.fromDateTime(DateTime.now());
+    _endDate = e.endTime != null
+        ? DateTime(e.endTime!.year, e.endTime!.month, e.endTime!.day)
+        : _date;
     _selectedProjectId = e.projectId;
   }
 
@@ -74,7 +78,13 @@ class _EditTimeEntryPageState extends ConsumerState<EditTimeEntryPage> {
       firstDate: DateTime(2020),
       lastDate: DateTime.now().add(const Duration(days: 365)),
     );
-    if (picked != null) setState(() => _date = picked);
+    if (picked != null) {
+      setState(() {
+        final diff = picked.difference(_date);
+        _endDate = _endDate.add(diff);
+        _date = picked;
+      });
+    }
   }
 
   Future<void> _pickStartTime() async {
@@ -117,7 +127,7 @@ class _EditTimeEntryPageState extends ConsumerState<EditTimeEntryPage> {
         );
       } else {
         final start = _buildDateTime(_date, _startTime);
-        final end = _buildDateTime(_date, _endTime);
+        final end = _buildDateTime(_endDate, _endTime);
 
         if (!end.isAfter(start)) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -161,7 +171,7 @@ class _EditTimeEntryPageState extends ConsumerState<EditTimeEntryPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
+          SnackBar(content: Text('Error: \$e')),
         );
       }
     } finally {
@@ -172,8 +182,9 @@ class _EditTimeEntryPageState extends ConsumerState<EditTimeEntryPage> {
   @override
   Widget build(BuildContext context) {
     final dateFmt = DateFormat.yMMMEd();
-    final duration = _buildDateTime(_date, _endTime)
+    final duration = _buildDateTime(_endDate, _endTime)
         .difference(_buildDateTime(_date, _startTime));
+    final isOvernight = _endDate != _date;
     final isCompleted = widget.entry.endTime != null;
     final projectsAsync = ref.watch(projectsForClientProvider(widget.entry.clientId));
 
@@ -279,7 +290,11 @@ class _EditTimeEntryPageState extends ConsumerState<EditTimeEntryPage> {
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.logout),
                     title: Text(_endTime.format(context)),
-                    subtitle: const Text('End'),
+                    subtitle: Text(
+                      isOvernight
+                          ? '\${DateFormat(\'MMM d\').format(_endDate)} · End'
+                          : 'End',
+                    ),
                     onTap: widget.entry.isInvoiced ? null : _pickEndTime,
                   ),
                 ),
@@ -289,7 +304,7 @@ class _EditTimeEntryPageState extends ConsumerState<EditTimeEntryPage> {
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: Text(
-                'Duration: ${formatDuration(duration.inMinutes)}',
+                'Duration: \${formatDuration(duration.inMinutes)}',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ),
