@@ -10,6 +10,7 @@ import '../../../../core/providers/database_provider.dart';
 import '../../../../core/providers/repository_providers.dart';
 import '../../../../shared/widgets/spacing.dart';
 import '../../../clients/presentation/providers/client_providers.dart';
+import '../../../dashboard/presentation/providers/dashboard_provider.dart';
 import '../providers/invoice_providers.dart';
 
 class ManualInvoicePage extends ConsumerStatefulWidget {
@@ -134,14 +135,11 @@ class _ManualInvoicePageState extends ConsumerState<ManualInvoicePage> {
         timeEntryIds: [],
       );
 
-      // Bump the invoice counter only if the number starts with the prefix
-      // (user may have typed a custom number)
-      final prefix = profile.invoiceNumberPrefix;
-      if (_invoiceNumberCtrl.text.trim().startsWith(prefix)) {
-        await profileDao.getNextInvoiceNumber(); // already incremented in _prefillFromProfile
-      }
-
       ref.invalidate(allInvoicesProvider);
+      ref.invalidate(monthlyIncomeProvider);
+      ref.invalidate(outstandingInvoicesProvider);
+      ref.invalidate(overdueInvoicesProvider);
+      ref.invalidate(uninvoicedByClientProvider);
 
       if (!mounted) return;
       context.pop();
@@ -346,7 +344,7 @@ class _ManualInvoicePageState extends ConsumerState<ManualInvoicePage> {
                         const SizedBox(height: Spacing.xs),
                         _TotalRow(
                             label:
-                                'Tax (${_taxRate.toStringAsFixed(2).replaceAll(RegExp(r'\.?0+$'), '')}%)',
+                                'Tax (${_taxRate.toStringAsFixed(2).replaceAll(RegExp(r'\.?0+\$'), '')}%)',
                             amount: _taxAmount,
                             currency: _currency),
                       ],
