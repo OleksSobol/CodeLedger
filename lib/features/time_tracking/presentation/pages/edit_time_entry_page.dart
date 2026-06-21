@@ -171,7 +171,7 @@ class _EditTimeEntryPageState extends ConsumerState<EditTimeEntryPage> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: \$e')),
+          SnackBar(content: Text('Error: $e')),
         );
       }
     } finally {
@@ -292,7 +292,7 @@ class _EditTimeEntryPageState extends ConsumerState<EditTimeEntryPage> {
                     title: Text(_endTime.format(context)),
                     subtitle: Text(
                       isOvernight
-                          ? '\${DateFormat(\'MMM d\').format(_endDate)} · End'
+                          ? "${DateFormat('MMM d').format(_endDate)} · End"
                           : 'End',
                     ),
                     onTap: widget.entry.isInvoiced ? null : _pickEndTime,
@@ -304,7 +304,7 @@ class _EditTimeEntryPageState extends ConsumerState<EditTimeEntryPage> {
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: Text(
-                'Duration: \${formatDuration(duration.inMinutes)}',
+                'Duration: ${formatDuration(duration.inMinutes)}',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ),
