@@ -77,10 +77,11 @@ int _quarterOf(DateTime d) => ((d.month - 1) ~/ 3) + 1;
 
 DateTimeRange _quarterRange(int year, int quarter) {
   final startMonth = (quarter - 1) * 3 + 1;
-  return DateTimeRange(
-    start: DateTime(year, startMonth),
-    end: DateTime(year, startMonth + 3),
-  );
+  final start = DateTime(year, startMonth, 1);
+  final end = quarter == 4
+      ? DateTime(year + 1, 1, 1)
+      : DateTime(year, startMonth + 3, 1);
+  return DateTimeRange(start: start, end: end);
 }
 
 String _periodCode(int year, int quarter) => 'Q$quarter$year';
@@ -253,10 +254,11 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
     final range = _quarterRange(_year, _quarter);
     double total = 0;
     for (final inv in invoices) {
-      if (inv.status != 'paid') continue;
-      if (inv.issueDate.isBefore(range.start)) continue;
-      if (!inv.issueDate.isBefore(range.end)) continue;
-      total += inv.total;
+      if (inv.status != 'paid' && inv.status != 'archived') continue;
+      final reportDate = inv.paidDate ?? inv.issueDate;
+      if (reportDate.isBefore(range.start)) continue;
+      if (!reportDate.isBefore(range.end)) continue;
+      total += inv.subtotal;
     }
     if (mounted) {
       setState(() {

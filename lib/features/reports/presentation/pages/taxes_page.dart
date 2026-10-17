@@ -104,6 +104,7 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
   List<_Receipt> _receipts = [];
 
   // Quarterly tax estimation
+  bool _useIrsPaymentPeriods = false;
   bool _showTaxRateSettings = false;
   double _federalRate = 0.22;
   double _seRate = 0.153;
@@ -847,13 +848,8 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
         continue;
       }
       totalNet += inv.subtotal;
-      if (_includeStateTax) {
-        totalTax += inv.taxAmount;
-        totalPaid += inv.total;
-      } else {
-        totalTax += 0;
-        totalPaid += inv.subtotal;
-      }
+      totalTax += inv.taxAmount;
+      totalPaid += inv.total;
     }
 
     final cur = NumberFormat.currency(symbol: '\$');
@@ -1488,51 +1484,94 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
     final monthlyRecurring = ref.watch(totalMonthlyDeductibleProvider);
     final now = DateTime.now();
 
-    // IRS estimated quarterly payment schedule; months = calendar months in the period
-    final quarters =
-        <
-          ({
-            String label,
-            String dates,
-            DateTime start,
-            DateTime end,
-            DateTime due,
-            int months,
-          })
-        >[
-          (
-            label: 'Q1',
-            dates: 'Jan 1 – Mar 31',
-            start: DateTime(year, 1, 1),
-            end: DateTime(year, 4, 1),
-            due: DateTime(year, 4, 15),
-            months: 3,
-          ),
-          (
-            label: 'Q2',
-            dates: 'Apr 1 – May 31',
-            start: DateTime(year, 4, 1),
-            end: DateTime(year, 6, 1),
-            due: DateTime(year, 6, 15),
-            months: 2,
-          ),
-          (
-            label: 'Q3',
-            dates: 'Jun 1 – Aug 31',
-            start: DateTime(year, 6, 1),
-            end: DateTime(year, 9, 1),
-            due: DateTime(year, 9, 15),
-            months: 3,
-          ),
-          (
-            label: 'Q4',
-            dates: 'Sep 1 – Dec 31',
-            start: DateTime(year, 9, 1),
-            end: DateTime(year + 1, 1, 1),
-            due: DateTime(year + 1, 1, 15),
-            months: 4,
-          ),
-        ];
+    // Quarterly schedule: standard 3-month calendar quarters or IRS 1040-ES payment periods
+    final quarters = _useIrsPaymentPeriods
+        ? <
+            ({
+              String label,
+              String dates,
+              DateTime start,
+              DateTime end,
+              DateTime due,
+              int months,
+            })
+          >[
+            (
+              label: 'Period 1',
+              dates: 'Jan 1 – Mar 31',
+              start: DateTime(year, 1, 1),
+              end: DateTime(year, 4, 1),
+              due: DateTime(year, 4, 15),
+              months: 3,
+            ),
+            (
+              label: 'Period 2',
+              dates: 'Apr 1 – May 31',
+              start: DateTime(year, 4, 1),
+              end: DateTime(year, 6, 1),
+              due: DateTime(year, 6, 15),
+              months: 2,
+            ),
+            (
+              label: 'Period 3',
+              dates: 'Jun 1 – Aug 31',
+              start: DateTime(year, 6, 1),
+              end: DateTime(year, 9, 1),
+              due: DateTime(year, 9, 15),
+              months: 3,
+            ),
+            (
+              label: 'Period 4',
+              dates: 'Sep 1 – Dec 31',
+              start: DateTime(year, 9, 1),
+              end: DateTime(year + 1, 1, 1),
+              due: DateTime(year + 1, 1, 15),
+              months: 4,
+            ),
+          ]
+        : <
+            ({
+              String label,
+              String dates,
+              DateTime start,
+              DateTime end,
+              DateTime due,
+              int months,
+            })
+          >[
+            (
+              label: 'Q1',
+              dates: 'Jan 1 – Mar 31',
+              start: DateTime(year, 1, 1),
+              end: DateTime(year, 4, 1),
+              due: DateTime(year, 4, 15),
+              months: 3,
+            ),
+            (
+              label: 'Q2',
+              dates: 'Apr 1 – Jun 30',
+              start: DateTime(year, 4, 1),
+              end: DateTime(year, 7, 1),
+              due: DateTime(year, 6, 15),
+              months: 3,
+            ),
+            (
+              label: 'Q3',
+              dates: 'Jul 1 – Sep 30',
+              start: DateTime(year, 7, 1),
+              end: DateTime(year, 10, 1),
+              due: DateTime(year, 9, 15),
+              months: 3,
+            ),
+            (
+              label: 'Q4',
+              dates: 'Oct 1 – Dec 31',
+              start: DateTime(year, 10, 1),
+              end: DateTime(year + 1, 1, 1),
+              due: DateTime(year + 1, 1, 15),
+              months: 3,
+            ),
+          ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1544,6 +1583,23 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
             style: theme.textTheme.titleSmall?.copyWith(
               fontWeight: FontWeight.bold,
             ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: SegmentedButton<bool>(
+            segments: const [
+              ButtonSegment<bool>(
+                value: false,
+                label: Text('Calendar Quarters (3mo each)'),
+              ),
+              ButtonSegment<bool>(
+                value: true,
+                label: Text('IRS 1040-ES Periods'),
+              ),
+            ],
+            selected: {_useIrsPaymentPeriods},
+            onSelectionChanged: (val) => setState(() => _useIrsPaymentPeriods = val.first),
           ),
         ),
         ...quarters.map((q) {
