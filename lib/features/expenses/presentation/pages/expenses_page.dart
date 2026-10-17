@@ -45,7 +45,7 @@ class ExpensesPage extends ConsumerWidget {
           Expanded(
             child: expensesAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Center(child: Text('Error: \$e')),
+              error: (e, _) => Center(child: Text('Error: $e')),
               data: (expenses) => expenses.isEmpty
                   ? _EmptyState(onAdd: () => context.push('/expenses/add'))
                   : ListView.builder(
@@ -102,7 +102,7 @@ class ExpensesPage extends ConsumerWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Delete Expense?'),
-        content: Text('Remove "\${expense.name}"?'),
+        content: Text('Remove "${expense.name}"?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -231,7 +231,7 @@ class _ExpenseTile extends StatelessWidget {
           ),
         ),
         subtitle: Text(
-          '\$label · \$pct% deductible',
+          '$label · $pct% deductible',
           style: theme.textTheme.bodySmall?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),

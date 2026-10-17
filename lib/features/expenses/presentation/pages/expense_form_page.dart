@@ -495,7 +495,7 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
                   child: OutlinedButton.icon(
                     icon: const Icon(Icons.calendar_today_outlined, size: 18),
                     label: Text(
-                      'Start: \${DateFormat(\'MMM d, yyyy\').format(_startDate)}',
+                      'Start: ${DateFormat('MMM d, yyyy').format(_startDate)}',
                     ),
                     onPressed: () => _pickDate(isStart: true),
                   ),
@@ -507,7 +507,7 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
                     label: Text(
                       _endDate == null
                           ? 'End: Ongoing'
-                          : 'End: \${DateFormat(\'MMM d, yyyy\').format(_endDate!)}',
+                          : 'End: ${DateFormat('MMM d, yyyy').format(_endDate!)}',
                     ),
                     onPressed: () async {
                       await _pickDate(isStart: false);
@@ -603,7 +603,7 @@ class _PreviewCard extends StatelessWidget {
                 ),
               ),
               Text(
-                '\$pct%',
+                '$pct%',
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w600,
                   color: theme.colorScheme.secondary,
