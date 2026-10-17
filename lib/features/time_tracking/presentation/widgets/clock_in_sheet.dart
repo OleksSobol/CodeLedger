@@ -6,6 +6,7 @@ import '../../../../shared/widgets/spacing.dart';
 import '../../../clients/presentation/providers/client_providers.dart';
 import '../../../projects/presentation/providers/project_providers.dart';
 import '../providers/time_entry_providers.dart';
+import 'manual_entry_sheet.dart';
 
 class ClockInSheet extends ConsumerStatefulWidget {
   const ClockInSheet({super.key});
@@ -280,6 +281,17 @@ class _ClockInSheetState extends ConsumerState<ClockInSheet> {
                         )
                       : const Icon(Icons.play_arrow),
                   label: const Text('Start Timer'),
+                ),
+              ),
+              const SizedBox(height: Spacing.xs),
+              Center(
+                child: TextButton.icon(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    ManualEntrySheet.show(context);
+                  },
+                  icon: const Icon(Icons.timer_outlined, size: 18),
+                  label: const Text('Or log manual duration instead'),
                 ),
               ),
             ],

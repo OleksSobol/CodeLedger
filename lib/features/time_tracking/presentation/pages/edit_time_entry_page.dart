@@ -8,6 +8,7 @@ import '../../../../core/utils/duration_formatter.dart';
 import '../../../../core/utils/tag_utils.dart';
 import '../providers/time_entry_providers.dart';
 import '../../../projects/presentation/providers/project_providers.dart';
+import '../../domain/manual_entry_mode.dart';
 
 class EditTimeEntryPage extends ConsumerStatefulWidget {
   final TimeEntry entry;
@@ -24,6 +25,9 @@ class _EditTimeEntryPageState extends ConsumerState<EditTimeEntryPage> {
   late final TextEditingController _repoCtrl;
   late final TextEditingController _tagsCtrl;
   late final TextEditingController _rateCtrl;
+  late final TextEditingController _hoursCtrl;
+  late final TextEditingController _minutesCtrl;
+  late ManualEntryMode _entryMode;
   late DateTime _date;
   late DateTime _endDate;
   late TimeOfDay _startTime;
@@ -41,6 +45,16 @@ class _EditTimeEntryPageState extends ConsumerState<EditTimeEntryPage> {
     _tagsCtrl = TextEditingController(text: tagsToDisplay(e.tags));
     _rateCtrl = TextEditingController(
       text: e.hourlyRateSnapshot.toStringAsFixed(2),
+    );
+    _entryMode =
+        e.isManual ? ManualEntryMode.duration : ManualEntryMode.exactTime;
+    final totalMins = e.durationMinutes ??
+        (e.endTime != null ? e.endTime!.difference(e.startTime).inMinutes : 0);
+    _hoursCtrl = TextEditingController(
+      text: (totalMins / 60.0).toStringAsFixed(totalMins % 60 == 0 ? 0 : 2),
+    );
+    _minutesCtrl = TextEditingController(
+      text: (totalMins % 60).toString(),
     );
     _date = DateTime(e.startTime.year, e.startTime.month, e.startTime.day);
     _startTime = TimeOfDay.fromDateTime(e.startTime);
@@ -60,7 +74,27 @@ class _EditTimeEntryPageState extends ConsumerState<EditTimeEntryPage> {
     _repoCtrl.dispose();
     _tagsCtrl.dispose();
     _rateCtrl.dispose();
+    _hoursCtrl.dispose();
+    _minutesCtrl.dispose();
     super.dispose();
+  }
+
+  int get _parsedDurationMinutes {
+    final hText = _hoursCtrl.text.trim();
+    final mText = _minutesCtrl.text.trim();
+    final hours = double.tryParse(hText) ?? 0.0;
+    final minutes = int.tryParse(mText) ?? 0;
+    final total = (hours * 60).round() + minutes;
+    return total > 0 ? total : 0;
+  }
+
+  void _setDuration(double hours, int minutes) {
+    setState(() {
+      _hoursCtrl.text = hours == hours.truncateToDouble()
+          ? hours.toInt().toString()
+          : hours.toString();
+      _minutesCtrl.text = minutes.toString();
+    });
   }
 
   DateTime _buildDateTime(DateTime date, TimeOfDay time) {
@@ -127,15 +161,33 @@ class _EditTimeEntryPageState extends ConsumerState<EditTimeEntryPage> {
           hourlyRateSnapshot: parsedRate,
         );
       } else {
-        final start = _buildDateTime(_date, _startTime);
-        final end = _buildDateTime(_endDate, _endTime);
+        DateTime start;
+        DateTime end;
 
-        if (!end.isAfter(start)) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('End time must be after start time')),
-          );
-          setState(() => _saving = false);
-          return;
+        if (_entryMode == ManualEntryMode.duration) {
+          final mins = _parsedDurationMinutes;
+          if (mins <= 0) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Please enter a duration greater than 0 minutes'),
+              ),
+            );
+            setState(() => _saving = false);
+            return;
+          }
+          start = _buildDateTime(_date, _startTime);
+          end = start.add(Duration(minutes: mins));
+        } else {
+          start = _buildDateTime(_date, _startTime);
+          end = _buildDateTime(_endDate, _endTime);
+
+          if (!end.isAfter(start)) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('End time must be after start time')),
+            );
+            setState(() => _saving = false);
+            return;
+          }
         }
 
         await notifier.updateEntryTimes(
@@ -267,8 +319,36 @@ class _EditTimeEntryPageState extends ConsumerState<EditTimeEntryPage> {
             const SizedBox(height: 16),
           ],
 
-          // Date picker — only for completed entries
-          if (isCompleted)
+          // Time and Duration controls — only for completed entries
+          if (isCompleted) ...[
+            if (!widget.entry.isInvoiced) ...[
+              SizedBox(
+                width: double.infinity,
+                child: SegmentedButton<ManualEntryMode>(
+                  segments: const [
+                    ButtonSegment(
+                      value: ManualEntryMode.duration,
+                      label: Text('Duration'),
+                      icon: Icon(Icons.timer_outlined),
+                    ),
+                    ButtonSegment(
+                      value: ManualEntryMode.exactTime,
+                      label: Text('Exact Time'),
+                      icon: Icon(Icons.schedule),
+                    ),
+                  ],
+                  selected: {_entryMode},
+                  onSelectionChanged: (set) {
+                    setState(() {
+                      _entryMode = set.first;
+                    });
+                  },
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+
+            // Date picker
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.calendar_today),
@@ -277,42 +357,141 @@ class _EditTimeEntryPageState extends ConsumerState<EditTimeEntryPage> {
               onTap: widget.entry.isInvoiced ? null : _pickDate,
             ),
 
-          // Time pickers — only shown for completed entries
-          if (isCompleted)
-            Row(
-              children: [
-                Expanded(
-                  child: ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.login),
-                    title: Text(_startTime.format(context)),
-                    subtitle: const Text('Start'),
-                    onTap: widget.entry.isInvoiced ? null : _pickStartTime,
-                  ),
-                ),
-                Expanded(
-                  child: ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.logout),
-                    title: Text(_endTime.format(context)),
-                    subtitle: Text(
-                      isOvernight
-                          ? '\${DateFormat(\'MMM d\').format(_endDate)} · End'
-                          : 'End',
+            if (_entryMode == ManualEntryMode.duration &&
+                !widget.entry.isInvoiced) ...[
+              Row(
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: TextFormField(
+                      controller: _hoursCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: 'Hours *',
+                        hintText: 'e.g. 4 or 4.5',
+                        suffixText: 'hrs',
+                        isDense: true,
+                      ),
+                      onChanged: (_) => setState(() {}),
                     ),
-                    onTap: widget.entry.isInvoiced ? null : _pickEndTime,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: TextFormField(
+                      controller: _minutesCtrl,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Minutes',
+                        hintText: 'e.g. 30',
+                        suffixText: 'min',
+                        isDense: true,
+                      ),
+                      onChanged: (_) => setState(() {}),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    Text(
+                      'Presets:',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color:
+                                Theme.of(context).colorScheme.onSurfaceVariant,
+                          ),
+                    ),
+                    const SizedBox(width: 8),
+                    ActionChip(
+                      label: const Text('30m'),
+                      padding: EdgeInsets.zero,
+                      visualDensity: VisualDensity.compact,
+                      onPressed: () => _setDuration(0, 30),
+                    ),
+                    const SizedBox(width: 6),
+                    ActionChip(
+                      label: const Text('1h'),
+                      padding: EdgeInsets.zero,
+                      visualDensity: VisualDensity.compact,
+                      onPressed: () => _setDuration(1, 0),
+                    ),
+                    const SizedBox(width: 6),
+                    ActionChip(
+                      label: const Text('2h'),
+                      padding: EdgeInsets.zero,
+                      visualDensity: VisualDensity.compact,
+                      onPressed: () => _setDuration(2, 0),
+                    ),
+                    const SizedBox(width: 6),
+                    ActionChip(
+                      label: const Text('4h'),
+                      padding: EdgeInsets.zero,
+                      visualDensity: VisualDensity.compact,
+                      onPressed: () => _setDuration(4, 0),
+                    ),
+                    const SizedBox(width: 6),
+                    ActionChip(
+                      label: const Text('8h'),
+                      padding: EdgeInsets.zero,
+                      visualDensity: VisualDensity.compact,
+                      onPressed: () => _setDuration(8, 0),
+                    ),
+                  ],
+                ),
+              ),
+              if (_parsedDurationMinutes > 0)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8, bottom: 8),
+                  child: Text(
+                    'Total Duration: ${formatDuration(_parsedDurationMinutes)} (${(_parsedDurationMinutes / 60.0).toStringAsFixed(2)} hrs)',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.primary,
+                          fontWeight: FontWeight.bold,
+                        ),
                   ),
                 ),
-              ],
-            ),
-          if (isCompleted && duration.inMinutes > 0)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Text(
-                'Duration: \${formatDuration(duration.inMinutes)}',
-                style: Theme.of(context).textTheme.bodySmall,
+            ] else ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.login),
+                      title: Text(_startTime.format(context)),
+                      subtitle: const Text('Start'),
+                      onTap: widget.entry.isInvoiced ? null : _pickStartTime,
+                    ),
+                  ),
+                  Expanded(
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.logout),
+                      title: Text(_endTime.format(context)),
+                      subtitle: Text(
+                        isOvernight
+                            ? '${DateFormat('MMM d').format(_endDate)} · End'
+                            : 'End',
+                      ),
+                      onTap: widget.entry.isInvoiced ? null : _pickEndTime,
+                    ),
+                  ),
+                ],
               ),
-            ),
+              if (duration.inMinutes > 0)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    'Duration: ${formatDuration(duration.inMinutes)}',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+            ],
+          ],
 
           const SizedBox(height: 8),
           projectsAsync.when(

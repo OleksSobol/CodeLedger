@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/database/app_database.dart';
+import '../../../../core/utils/duration_formatter.dart';
 import '../../../../core/utils/tag_utils.dart';
 import '../../../../shared/widgets/spacing.dart';
 import '../../../clients/presentation/providers/client_providers.dart';
 import '../../../projects/presentation/providers/project_providers.dart';
 import '../../../../core/database/daos/time_entry_dao.dart';
+import '../../domain/manual_entry_mode.dart';
 import '../providers/time_entry_providers.dart';
 
 class ManualEntrySheet extends ConsumerStatefulWidget {
@@ -30,6 +32,10 @@ class _ManualEntrySheetState extends ConsumerState<ManualEntrySheet> {
   final _issueRefCtrl = TextEditingController();
   final _repoCtrl = TextEditingController();
   final _tagsCtrl = TextEditingController();
+  final _hoursCtrl = TextEditingController(text: '4');
+  final _minutesCtrl = TextEditingController(text: '0');
+
+  ManualEntryMode _entryMode = ManualEntryMode.duration;
   Client? _selectedClient;
   Project? _selectedProject;
   DateTime _date = DateTime.now();
@@ -44,7 +50,27 @@ class _ManualEntrySheetState extends ConsumerState<ManualEntrySheet> {
     _issueRefCtrl.dispose();
     _repoCtrl.dispose();
     _tagsCtrl.dispose();
+    _hoursCtrl.dispose();
+    _minutesCtrl.dispose();
     super.dispose();
+  }
+
+  int get _parsedDurationMinutes {
+    final hText = _hoursCtrl.text.trim();
+    final mText = _minutesCtrl.text.trim();
+    final hours = double.tryParse(hText) ?? 0.0;
+    final minutes = int.tryParse(mText) ?? 0;
+    final total = (hours * 60).round() + minutes;
+    return total > 0 ? total : 0;
+  }
+
+  void _setDuration(double hours, int minutes) {
+    setState(() {
+      _hoursCtrl.text = hours == hours.truncateToDouble()
+          ? hours.toInt().toString()
+          : hours.toString();
+      _minutesCtrl.text = minutes.toString();
+    });
   }
 
   DateTime _buildDateTime(DateTime date, TimeOfDay time) {
@@ -90,55 +116,108 @@ class _ManualEntrySheetState extends ConsumerState<ManualEntrySheet> {
       return;
     }
 
-    final start = _buildDateTime(_date, _startTime);
-    final end = _buildDateTime(_date, _endTime);
-
-    if (!end.isAfter(start)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('End time must be after start time')),
-      );
-      return;
-    }
-
-    setState(() => _saving = true);
-    try {
-      await ref
-          .read(timerNotifierProvider.notifier)
-          .addManualEntry(
-            clientId: _selectedClient!.id,
-            projectId: _selectedProject?.id,
-            startTime: start,
-            endTime: end,
-            description: _trimOrNull(_descriptionCtrl.text),
-            issueReference: _trimOrNull(_issueRefCtrl.text),
-            repository: _trimOrNull(_repoCtrl.text),
-            tags: serializeTags(_tagsCtrl.text),
-          );
-      ref.invalidate(allTagsProvider);
-      if (mounted) Navigator.pop(context, true);
-    } on OverlappingTimeEntryException catch (e) {
-      if (mounted) {
-        final timeFmt = DateFormat.jm();
-        final overlap = e.existing;
+    if (_entryMode == ManualEntryMode.duration) {
+      final durationMinutes = _parsedDurationMinutes;
+      if (durationMinutes <= 0) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Overlaps with existing entry: '
-              '${timeFmt.format(overlap.startTime)} – '
-              '${timeFmt.format(overlap.endTime!)}',
-            ),
-            duration: const Duration(seconds: 4),
+          const SnackBar(
+            content: Text('Please enter a duration greater than 0 minutes'),
           ),
         );
+        return;
       }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+
+      setState(() => _saving = true);
+      try {
+        await ref
+            .read(timerNotifierProvider.notifier)
+            .addManualDurationEntry(
+              clientId: _selectedClient!.id,
+              projectId: _selectedProject?.id,
+              date: _date,
+              durationMinutes: durationMinutes,
+              description: _trimOrNull(_descriptionCtrl.text),
+              issueReference: _trimOrNull(_issueRefCtrl.text),
+              repository: _trimOrNull(_repoCtrl.text),
+              tags: serializeTags(_tagsCtrl.text),
+            );
+        ref.invalidate(allTagsProvider);
+        if (mounted) Navigator.pop(context, true);
+      } on OverlappingTimeEntryException catch (e) {
+        if (mounted) {
+          final timeFmt = DateFormat.jm();
+          final overlap = e.existing;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Overlaps with existing entry: '
+                '${timeFmt.format(overlap.startTime)} – '
+                '${timeFmt.format(overlap.endTime!)}',
+              ),
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Error: $e')));
+        }
+      } finally {
+        if (mounted) setState(() => _saving = false);
       }
-    } finally {
-      if (mounted) setState(() => _saving = false);
+    } else {
+      final start = _buildDateTime(_date, _startTime);
+      final end = _buildDateTime(_date, _endTime);
+
+      if (!end.isAfter(start)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('End time must be after start time')),
+        );
+        return;
+      }
+
+      setState(() => _saving = true);
+      try {
+        await ref
+            .read(timerNotifierProvider.notifier)
+            .addManualEntry(
+              clientId: _selectedClient!.id,
+              projectId: _selectedProject?.id,
+              startTime: start,
+              endTime: end,
+              description: _trimOrNull(_descriptionCtrl.text),
+              issueReference: _trimOrNull(_issueRefCtrl.text),
+              repository: _trimOrNull(_repoCtrl.text),
+              tags: serializeTags(_tagsCtrl.text),
+            );
+        ref.invalidate(allTagsProvider);
+        if (mounted) Navigator.pop(context, true);
+      } on OverlappingTimeEntryException catch (e) {
+        if (mounted) {
+          final timeFmt = DateFormat.jm();
+          final overlap = e.existing;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Overlaps with existing entry: '
+                '${timeFmt.format(overlap.startTime)} – '
+                '${timeFmt.format(overlap.endTime!)}',
+              ),
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Error: $e')));
+        }
+      } finally {
+        if (mounted) setState(() => _saving = false);
+      }
     }
   }
 
@@ -266,8 +345,35 @@ class _ManualEntrySheetState extends ConsumerState<ManualEntrySheet> {
                   },
                 ),
 
-              // Date + Time row
               const SizedBox(height: Spacing.sm),
+
+              // Entry Mode: Duration vs Exact Time (DEV-76)
+              SizedBox(
+                width: double.infinity,
+                child: SegmentedButton<ManualEntryMode>(
+                  segments: const [
+                    ButtonSegment(
+                      value: ManualEntryMode.duration,
+                      label: Text('Duration'),
+                      icon: Icon(Icons.timer_outlined),
+                    ),
+                    ButtonSegment(
+                      value: ManualEntryMode.exactTime,
+                      label: Text('Exact Time'),
+                      icon: Icon(Icons.schedule),
+                    ),
+                  ],
+                  selected: {_entryMode},
+                  onSelectionChanged: (set) {
+                    setState(() {
+                      _entryMode = set.first;
+                    });
+                  },
+                ),
+              ),
+              const SizedBox(height: Spacing.sm),
+
+              // Date picker
               InkWell(
                 borderRadius: BorderRadius.circular(8),
                 onTap: _pickDate,
@@ -296,86 +402,210 @@ class _ManualEntrySheetState extends ConsumerState<ManualEntrySheet> {
                 ),
               ),
 
-              Row(
-                children: [
-                  Expanded(
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(8),
-                      onTap: _pickStartTime,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          vertical: Spacing.sm,
+              if (_entryMode == ManualEntryMode.duration) ...[
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: TextFormField(
+                        controller: _hoursCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
                         ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.login,
-                              size: 20,
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                            const SizedBox(width: Spacing.sm),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  _startTime.format(context),
-                                  style: theme.textTheme.bodyMedium,
-                                ),
-                                Text(
-                                  'Start',
-                                  style: theme.textTheme.labelSmall,
-                                ),
-                              ],
-                            ),
-                          ],
+                        decoration: const InputDecoration(
+                          labelText: 'Hours *',
+                          hintText: 'e.g. 4 or 4.5',
+                          suffixText: 'hrs',
+                          isDense: true,
                         ),
+                        onChanged: (_) => setState(() {}),
                       ),
                     ),
-                  ),
-                  Expanded(
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(8),
-                      onTap: _pickEndTime,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          vertical: Spacing.sm,
+                    const SizedBox(width: Spacing.sm),
+                    Expanded(
+                      flex: 2,
+                      child: TextFormField(
+                        controller: _minutesCtrl,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Minutes',
+                          hintText: 'e.g. 30',
+                          suffixText: 'min',
+                          isDense: true,
                         ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              Icons.logout,
-                              size: 20,
-                              color: theme.colorScheme.onSurfaceVariant,
-                            ),
-                            const SizedBox(width: Spacing.sm),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  _endTime.format(context),
-                                  style: theme.textTheme.bodyMedium,
-                                ),
-                                Text('End', style: theme.textTheme.labelSmall),
-                              ],
-                            ),
-                          ],
-                        ),
+                        onChanged: (_) => setState(() {}),
                       ),
                     ),
-                  ),
-                ],
-              ),
-              if (duration.inMinutes > 0)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: Spacing.sm),
-                  child: Text(
-                    'Duration: ${duration.inHours}h ${duration.inMinutes % 60}m',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.primary,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  ],
+                ),
+                const SizedBox(height: Spacing.xs),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      Text(
+                        'Presets:',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ActionChip(
+                        label: const Text('30m'),
+                        padding: EdgeInsets.zero,
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () => _setDuration(0, 30),
+                      ),
+                      const SizedBox(width: 6),
+                      ActionChip(
+                        label: const Text('1h'),
+                        padding: EdgeInsets.zero,
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () => _setDuration(1, 0),
+                      ),
+                      const SizedBox(width: 6),
+                      ActionChip(
+                        label: const Text('2h'),
+                        padding: EdgeInsets.zero,
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () => _setDuration(2, 0),
+                      ),
+                      const SizedBox(width: 6),
+                      ActionChip(
+                        label: const Text('4h'),
+                        padding: EdgeInsets.zero,
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () => _setDuration(4, 0),
+                      ),
+                      const SizedBox(width: 6),
+                      ActionChip(
+                        label: const Text('8h'),
+                        padding: EdgeInsets.zero,
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () => _setDuration(8, 0),
+                      ),
+                    ],
                   ),
                 ),
+                if (_parsedDurationMinutes > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(
+                      top: Spacing.xs,
+                      bottom: Spacing.sm,
+                    ),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primaryContainer.withValues(
+                          alpha: 0.3,
+                        ),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.check_circle_outline,
+                            size: 16,
+                            color: theme.colorScheme.primary,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Total Duration: ${formatDuration(_parsedDurationMinutes)} (${(_parsedDurationMinutes / 60.0).toStringAsFixed(2)} hrs)',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.primary,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ] else ...[
+                Row(
+                  children: [
+                    Expanded(
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(8),
+                        onTap: _pickStartTime,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: Spacing.sm,
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.login,
+                                size: 20,
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                              const SizedBox(width: Spacing.sm),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _startTime.format(context),
+                                    style: theme.textTheme.bodyMedium,
+                                  ),
+                                  Text(
+                                    'Start',
+                                    style: theme.textTheme.labelSmall,
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(8),
+                        onTap: _pickEndTime,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: Spacing.sm,
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.logout,
+                                size: 20,
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                              const SizedBox(width: Spacing.sm),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _endTime.format(context),
+                                    style: theme.textTheme.bodyMedium,
+                                  ),
+                                  Text('End', style: theme.textTheme.labelSmall),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (duration.inMinutes > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: Spacing.sm),
+                    child: Text(
+                      'Duration: ${formatDuration(duration.inMinutes)}',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+              ],
 
               // Description
               TextFormField(

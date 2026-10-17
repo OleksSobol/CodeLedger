@@ -304,6 +304,119 @@ class TimerNotifier extends AsyncNotifier<void> {
     return id;
   }
 
+  /// Finds a non-overlapping time slot on [date] for [clientId] with duration [durationMinutes].
+  Future<(DateTime, DateTime)> findSlotForDuration({
+    required DateTime date,
+    required int durationMinutes,
+    required String clientId,
+  }) async {
+    final dayStart = DateTime(date.year, date.month, date.day);
+    final dayEnd = dayStart.add(const Duration(days: 1));
+    final entries = await _dao.getAllEntries(
+      from: dayStart,
+      to: dayEnd,
+      clientId: clientId,
+    );
+
+    final sorted = entries.where((e) => e.endTime != null).toList()
+      ..sort((a, b) => a.startTime.compareTo(b.startTime));
+
+    bool hasOverlap(DateTime start, DateTime end) {
+      for (final e in sorted) {
+        if (e.startTime.isBefore(end) && e.endTime!.isAfter(start)) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    // Default start time: 9:00 AM on the given date
+    var candidateStart = DateTime(date.year, date.month, date.day, 9, 0);
+    var candidateEnd = candidateStart.add(Duration(minutes: durationMinutes));
+
+    if (!hasOverlap(candidateStart, candidateEnd)) {
+      return (candidateStart, candidateEnd);
+    }
+
+    // Try slotting immediately after each existing entry on that date
+    for (final e in sorted) {
+      candidateStart = e.endTime!;
+      candidateEnd = candidateStart.add(Duration(minutes: durationMinutes));
+      if (!hasOverlap(candidateStart, candidateEnd)) {
+        return (candidateStart, candidateEnd);
+      }
+    }
+
+    // Fallback: slot after the latest entry
+    if (sorted.isNotEmpty) {
+      final latestEnd = sorted
+          .map((e) => e.endTime!)
+          .reduce((a, b) => a.isAfter(b) ? a : b);
+      candidateStart = latestEnd;
+      candidateEnd = candidateStart.add(Duration(minutes: durationMinutes));
+      return (candidateStart, candidateEnd);
+    }
+
+    return (candidateStart, candidateEnd);
+  }
+
+  /// Adds a manual duration-based time entry (DEV-76).
+  Future<String> addManualDurationEntry({
+    required String clientId,
+    String? projectId,
+    required DateTime date,
+    required int durationMinutes,
+    String? description,
+    String? issueReference,
+    String? repository,
+    String? tags,
+    double? customHourlyRate,
+  }) async {
+    final profile = await ref.read(userProfileRepositoryProvider).getProfile();
+    final client = await ref.read(clientRepositoryProvider).getClient(clientId);
+
+    double? projectRate;
+    if (projectId != null) {
+      final project = await ref
+          .read(projectRepositoryProvider)
+          .getProject(projectId);
+      projectRate = project.hourlyRateOverride;
+    }
+
+    final rate = customHourlyRate ??
+        resolveHourlyRate(
+          projectRateOverride: projectRate,
+          clientRate: client.hourlyRate,
+          profileDefaultRate: profile.defaultHourlyRate,
+        );
+
+    final (start, end) = await findSlotForDuration(
+      date: date,
+      durationMinutes: durationMinutes,
+      clientId: clientId,
+    );
+
+    final id = await _dao.insertWithOverlapCheck(
+      TimeEntriesCompanion(
+        clientId: Value(clientId),
+        projectId: Value(projectId),
+        startTime: Value(start),
+        endTime: Value(end),
+        durationMinutes: Value(durationMinutes),
+        hourlyRateSnapshot: Value(rate),
+        isManual: const Value(true),
+        description: Value(description),
+        issueReference: Value(issueReference),
+        repository: Value(repository),
+        tags: Value(tags),
+      ),
+    );
+    ref.invalidate(lastCompletedEntryProvider);
+    ref.invalidate(weeklyHoursProvider);
+    ref.invalidate(uninvoicedByClientProvider);
+    return id;
+  }
+
   Future<void> deleteEntry(String entryId) async {
     await _dao.deleteEntry(entryId);
     ref.invalidate(lastCompletedEntryProvider);
