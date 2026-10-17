@@ -11,6 +11,45 @@ import '../../../../core/providers/theme_provider.dart';
 import '../../domain/entities/tax_bank_split.dart';
 import '../../../dashboard/presentation/providers/dashboard_provider.dart';
 
+import '../../../clients/presentation/providers/client_providers.dart';
+
+// ── Search query ───────────────────────────────────────────────────
+class InvoiceSearchQueryNotifier extends Notifier<String> {
+  @override
+  String build() => '';
+  void set(String q) => state = q;
+  void clear() => state = '';
+}
+
+final invoiceSearchQueryProvider =
+    NotifierProvider<InvoiceSearchQueryNotifier, String>(
+      InvoiceSearchQueryNotifier.new,
+    );
+
+// ── Sort order ─────────────────────────────────────────────────────
+enum InvoiceSortOrder {
+  newest('Newest First'),
+  oldest('Oldest First'),
+  dueDate('Due Date'),
+  amountHigh('Amount (High-Low)'),
+  amountLow('Amount (Low-High)'),
+  clientName('Client (A-Z)');
+
+  final String label;
+  const InvoiceSortOrder(this.label);
+}
+
+class InvoiceSortOrderNotifier extends Notifier<InvoiceSortOrder> {
+  @override
+  InvoiceSortOrder build() => InvoiceSortOrder.newest;
+  void set(InvoiceSortOrder o) => state = o;
+}
+
+final invoiceSortOrderProvider =
+    NotifierProvider<InvoiceSortOrderNotifier, InvoiceSortOrder>(
+      InvoiceSortOrderNotifier.new,
+    );
+
 // ── Status filter ──────────────────────────────────────────────────
 class InvoiceStatusFilterNotifier extends Notifier<String?> {
   @override
@@ -23,6 +62,113 @@ final invoiceStatusFilterProvider =
       InvoiceStatusFilterNotifier.new,
     );
 
+// ── Metrics Summary ────────────────────────────────────────────────
+class InvoiceMetricsSummary {
+  final double totalOutstanding;
+  final int outstandingCount;
+  final double totalPaid;
+  final int paidCount;
+  final double totalOverdue;
+  final int overdueCount;
+  final int draftCount;
+
+  const InvoiceMetricsSummary({
+    required this.totalOutstanding,
+    required this.outstandingCount,
+    required this.totalPaid,
+    required this.paidCount,
+    required this.totalOverdue,
+    required this.overdueCount,
+    required this.draftCount,
+  });
+
+  factory InvoiceMetricsSummary.fromInvoices(List<Invoice> invoices) {
+    double outstanding = 0;
+    int outstandingCount = 0;
+    double paid = 0;
+    int paidCount = 0;
+    double overdue = 0;
+    int overdueCount = 0;
+    int drafts = 0;
+    final now = DateTime.now();
+
+    for (final inv in invoices) {
+      if (inv.status == 'archived') continue;
+      if (inv.status == 'draft') {
+        drafts++;
+      } else if (inv.status == 'paid') {
+        paid += inv.amountPaid > 0 ? inv.amountPaid : inv.total;
+        paidCount++;
+      } else if (inv.status == 'sent' || inv.status == 'overdue') {
+        final balance = inv.total - inv.amountPaid;
+        if (balance > 0) {
+          outstanding += balance;
+          outstandingCount++;
+          if (inv.status == 'overdue' || inv.dueDate.isBefore(now)) {
+            overdue += balance;
+            overdueCount++;
+          }
+        }
+      }
+    }
+    return InvoiceMetricsSummary(
+      totalOutstanding: outstanding,
+      outstandingCount: outstandingCount,
+      totalPaid: paid,
+      paidCount: paidCount,
+      totalOverdue: overdue,
+      overdueCount: overdueCount,
+      draftCount: drafts,
+    );
+  }
+}
+
+final invoiceMetricsSummaryProvider = Provider<InvoiceMetricsSummary>((ref) {
+  final all = ref.watch(allInvoicesProvider).value ?? const [];
+  return InvoiceMetricsSummary.fromInvoices(all);
+});
+
+final invoiceStatusCountsProvider = Provider<Map<String?, int>>((ref) {
+  final all = ref.watch(allInvoicesProvider).value ?? const [];
+  final now = DateTime.now();
+  int allNonArchived = 0;
+  int drafts = 0;
+  int sent = 0;
+  int paid = 0;
+  int overdue = 0;
+  int archived = 0;
+
+  for (final i in all) {
+    if (i.status == 'archived') {
+      archived++;
+      continue;
+    }
+    allNonArchived++;
+    if (i.status == 'draft') {
+      drafts++;
+    } else if (i.status == 'sent') {
+      sent++;
+      if (i.dueDate.isBefore(now)) {
+        overdue++;
+      }
+    } else if (i.status == 'paid') {
+      paid++;
+    } else if (i.status == 'overdue') {
+      overdue++;
+      sent++;
+    }
+  }
+
+  return {
+    null: allNonArchived,
+    'draft': drafts,
+    'sent': sent,
+    'paid': paid,
+    'overdue': overdue,
+    'archived': archived,
+  };
+});
+
 // ── All invoices stream ────────────────────────────────────────────
 final allInvoicesProvider = StreamProvider<List<Invoice>>((ref) {
   return ref.watch(invoiceRepositoryProvider).watchInvoices();
@@ -32,12 +178,66 @@ final allInvoicesProvider = StreamProvider<List<Invoice>>((ref) {
 final filteredInvoicesProvider = Provider<AsyncValue<List<Invoice>>>((ref) {
   final allAsync = ref.watch(allInvoicesProvider);
   final statusFilter = ref.watch(invoiceStatusFilterProvider);
+  final searchQuery = ref
+      .watch(invoiceSearchQueryProvider)
+      .trim()
+      .toLowerCase();
+  final sortOrder = ref.watch(invoiceSortOrderProvider);
+  final clients = ref.watch(allClientsProvider).value ?? const [];
+  final clientMap = {for (final c in clients) c.id: c.name};
 
   return allAsync.whenData((invoices) {
-    if (statusFilter == null) {
-      return invoices.where((i) => i.status != 'archived').toList();
+    final now = DateTime.now();
+    var list = invoices.where((i) {
+      if (statusFilter == null) {
+        if (i.status == 'archived') return false;
+      } else if (statusFilter == 'overdue') {
+        final isOverdue =
+            i.status == 'overdue' ||
+            (i.status == 'sent' && i.dueDate.isBefore(now));
+        if (!isOverdue) return false;
+      } else {
+        if (i.status != statusFilter) return false;
+      }
+
+      if (searchQuery.isNotEmpty) {
+        final matchesNumber = i.invoiceNumber.toLowerCase().contains(
+          searchQuery,
+        );
+        final clientName = (clientMap[i.clientId] ?? '').toLowerCase();
+        final matchesClient = clientName.contains(searchQuery);
+        if (!matchesNumber && !matchesClient) return false;
+      }
+
+      return true;
+    }).toList();
+
+    switch (sortOrder) {
+      case InvoiceSortOrder.newest:
+        list.sort((a, b) => b.issueDate.compareTo(a.issueDate));
+        break;
+      case InvoiceSortOrder.oldest:
+        list.sort((a, b) => a.issueDate.compareTo(b.issueDate));
+        break;
+      case InvoiceSortOrder.dueDate:
+        list.sort((a, b) => a.dueDate.compareTo(b.dueDate));
+        break;
+      case InvoiceSortOrder.amountHigh:
+        list.sort((a, b) => b.total.compareTo(a.total));
+        break;
+      case InvoiceSortOrder.amountLow:
+        list.sort((a, b) => a.total.compareTo(b.total));
+        break;
+      case InvoiceSortOrder.clientName:
+        list.sort((a, b) {
+          final nameA = clientMap[a.clientId] ?? '';
+          final nameB = clientMap[b.clientId] ?? '';
+          return nameA.toLowerCase().compareTo(nameB.toLowerCase());
+        });
+        break;
     }
-    return invoices.where((i) => i.status == statusFilter).toList();
+
+    return list;
   });
 });
 
