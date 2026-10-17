@@ -628,6 +628,42 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
 
             const SizedBox(height: 16),
 
+            // ── Bank Tax Reserve (DEV-71) ──────────────────────────
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Bank Tax Reserve',
+                      style: theme.textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Realistic amount of money that belongs in your dedicated '
+                      'tax bank account for Washington state and federal taxes, '
+                      'and how much operating money was taken out.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: () => context.push('/taxes'),
+                        icon: const Icon(Icons.account_balance),
+                        label: const Text('View Bank Reserve Ledger'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
             // ── WA Excise Tax ──────────────────────────────────────
             Card(
               child: Padding(

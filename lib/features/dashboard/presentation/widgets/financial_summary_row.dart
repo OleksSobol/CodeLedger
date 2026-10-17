@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../../../core/utils/currency_formatter.dart';
 import '../../../../shared/widgets/spacing.dart';
 import '../../../invoices/presentation/providers/invoice_providers.dart';
+import '../../../reports/presentation/providers/tax_reserve_providers.dart';
 import '../providers/dashboard_provider.dart';
 
 /// Horizontally scrollable financial insight tiles.
@@ -20,6 +21,7 @@ class FinancialSummaryRow extends ConsumerWidget {
     final outstandingAsync = ref.watch(outstandingInvoicesProvider);
     final overdueAsync = ref.watch(overdueInvoicesProvider);
     final uninvoicedAsync = ref.watch(uninvoicedByClientProvider);
+    final bankReserveAsync = ref.watch(bankTaxReserveSummaryProvider(DateTime.now().year));
 
     final isWide = MediaQuery.sizeOf(context).width >= 600;
 
@@ -107,6 +109,18 @@ class FinancialSummaryRow extends ConsumerWidget {
         accentColor: theme.colorScheme.tertiary,
         wide: isWide,
         onTap: () => context.push('/invoices/create'),
+      ),
+      _InsightTile(
+        label: 'Bank Reserve',
+        value: bankReserveAsync.when(
+          loading: () => '...',
+          error: (_, _) => '--',
+          data: (v) => formatCurrency(v.totalBankReserve),
+        ),
+        icon: Icons.account_balance,
+        accentColor: theme.colorScheme.primary,
+        wide: isWide,
+        onTap: () => context.push('/taxes'),
       ),
     ];
 

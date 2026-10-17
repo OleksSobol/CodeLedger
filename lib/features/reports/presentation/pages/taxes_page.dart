@@ -18,6 +18,9 @@ import '../../../clients/presentation/providers/client_providers.dart';
 import '../../../export/presentation/providers/export_providers.dart';
 import '../../../expenses/presentation/providers/expense_providers.dart';
 import '../../../invoices/presentation/providers/invoice_providers.dart';
+import 'package:flutter/services.dart';
+import '../../domain/models/bank_tax_reserve_summary.dart';
+import '../providers/tax_reserve_providers.dart';
 import '../../data/models/tax_report_data.dart';
 import '../../data/templates/tax_report_template.dart';
 
@@ -120,7 +123,7 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 3, vsync: this);
+    _tabs = TabController(length: 4, vsync: this);
     final now = DateTime.now();
     _dateRange = DateTimeRange(
       start: DateTime(now.year, 1, 1),
@@ -403,7 +406,10 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
         title: const Text('Taxes'),
         bottom: TabBar(
           controller: _tabs,
+          isScrollable: true,
+          tabAlignment: TabAlignment.start,
           tabs: const [
+            Tab(text: 'Bank Reserve'),
             Tab(text: 'Federal'),
             Tab(text: 'State / Local'),
             Tab(text: 'Guide'),
@@ -412,8 +418,397 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
       ),
       body: TabBarView(
         controller: _tabs,
-        children: [_buildFederalTab(), _buildStateTab(), _buildGuideTab()],
+        children: [
+          _buildBankReserveTab(),
+          _buildFederalTab(),
+          _buildStateTab(),
+          _buildGuideTab(),
+        ],
       ),
+    );
+  }
+
+  // ── Bank Reserve tab (DEV-71) ─────────────────────────────────────────────────
+
+  Widget _buildBankReserveTab() {
+    final theme = Theme.of(context);
+    final cur = NumberFormat.currency(symbol: '\$');
+    final selectedYear = ref.watch(bankReserveYearProvider);
+    final summaryAsync = ref.watch(bankTaxReserveSummaryProvider(selectedYear));
+
+    return summaryAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, st) => Center(child: Text('Error loading bank reserve: $e')),
+      data: (summary) {
+        final takeHomePct = summary.totalGrossCollected > 0
+            ? (summary.totalTakeHomeWithdrawn / summary.totalGrossCollected * 100).toStringAsFixed(1)
+            : '0.0';
+        final taxReservePct = summary.totalGrossCollected > 0
+            ? (summary.totalBankReserve / summary.totalGrossCollected * 100).toStringAsFixed(1)
+            : '0.0';
+
+        return ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            // Year Selector Bar
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                IconButton.filledTonal(
+                  icon: const Icon(Icons.chevron_left),
+                  tooltip: 'Previous Year',
+                  onPressed: () => ref.read(bankReserveYearProvider.notifier).decrement(),
+                ),
+                Text(
+                  '$selectedYear Tax Bank Ledger',
+                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                IconButton.filledTonal(
+                  icon: const Icon(Icons.chevron_right),
+                  tooltip: 'Next Year',
+                  onPressed: () => ref.read(bankReserveYearProvider.notifier).increment(),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Hero Card: Money Supposed to be in Bank
+            Card(
+              elevation: 2,
+              color: theme.colorScheme.primaryContainer,
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.primary,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(
+                            Icons.account_balance,
+                            color: theme.colorScheme.onPrimary,
+                            size: 26,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Money Supposed to be in Bank',
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  color: theme.colorScheme.onPrimaryContainer,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                'Dedicated Tax Savings Account',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onPrimaryContainer.withAlpha(200),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton.filledTonal(
+                          icon: const Icon(Icons.copy_all, size: 20),
+                          tooltip: 'Copy Bank Ledger Summary',
+                          onPressed: () {
+                            Clipboard.setData(ClipboardData(text: summary.toClipboardSummary()));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Bank reserve summary copied to clipboard!')),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      cur.format(summary.totalBankReserve),
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.onPrimaryContainer,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Keep this balance untouched in your high-yield tax bank account to pay Washington DOR and IRS estimated taxes.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onPrimaryContainer.withAlpha(210),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Reconciliation Card: Invoices vs Withdrawals
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Realistic Invoices & Withdrawals',
+                      style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Reconciliation of all invoices and what was taken out for personal / operating pay.',
+                      style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                    ),
+                    const SizedBox(height: 16),
+                    _SummaryRow(
+                      'Total cash collected (${summary.totalInvoicesCount} invoices)',
+                      cur.format(summary.totalGrossCollected),
+                      theme,
+                      bold: true,
+                    ),
+                    const SizedBox(height: 6),
+                    _SummaryRow(
+                      'What you took out (Operating / Pay)',
+                      cur.format(summary.totalTakeHomeWithdrawn),
+                      theme,
+                    ),
+                    const SizedBox(height: 6),
+                    _SummaryRow(
+                      'What stays in bank (Tax Reserve)',
+                      cur.format(summary.totalBankReserve),
+                      theme,
+                    ),
+                    const SizedBox(height: 12),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            flex: (summary.totalTakeHomeWithdrawn * 100).toInt().clamp(1, 1000000),
+                            child: Container(
+                              height: 10,
+                              color: theme.colorScheme.primary,
+                            ),
+                          ),
+                          Expanded(
+                            flex: (summary.totalBankReserve * 100).toInt().clamp(1, 1000000),
+                            child: Container(
+                              height: 10,
+                              color: theme.colorScheme.tertiary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Take-home: $takeHomePct%', style: theme.textTheme.bodySmall),
+                        Text('Tax Reserve: $taxReservePct%', style: theme.textTheme.bodySmall),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Tax Breakdown Details (State vs Federal)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.apartment, size: 18),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  'WA State Tax',
+                                  style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const Divider(height: 16),
+                          Text('Sales Tax', style: theme.textTheme.bodySmall),
+                          Text(cur.format(summary.totalSalesTax), style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 8),
+                          Text('B&O (${(summary.boRate * 100).toStringAsFixed(2)}%)', style: theme.textTheme.bodySmall),
+                          Text(cur.format(summary.totalBoTax), style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
+                          const Divider(height: 16),
+                          Text('Total State', style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.bold)),
+                          Text(
+                            cur.format(summary.totalStateTax),
+                            style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold, color: theme.colorScheme.primary),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.flag_outlined, size: 18),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  'Federal Tax',
+                                  style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const Divider(height: 16),
+                          Text('SE (${(summary.seRate * 100).toStringAsFixed(1)}%)', style: theme.textTheme.bodySmall),
+                          Text(cur.format(summary.seTax), style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 8),
+                          Text('Income (${(summary.federalRate * 100).toStringAsFixed(1)}%)', style: theme.textTheme.bodySmall),
+                          Text(cur.format(summary.federalIncomeTax), style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
+                          const Divider(height: 16),
+                          Text('Total Federal', style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.bold)),
+                          Text(
+                            cur.format(summary.totalFederalTax),
+                            style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold, color: theme.colorScheme.tertiary),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Quarterly Breakdown Table / Cards
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Quarterly Bank Ledger ($selectedYear)',
+                      style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 12),
+                    ...summary.quarters.map((q) => Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.surfaceContainerLow,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: theme.colorScheme.outlineVariant.withAlpha(80)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    q.label,
+                                    style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
+                                  ),
+                                  Text(
+                                    '${q.invoicesCount} ${q.invoicesCount == 1 ? 'inv' : 'invs'} · Invoiced ${cur.format(q.grossCollected)}',
+                                    style: theme.textTheme.bodySmall,
+                                  ),
+                                ],
+                              ),
+                              const Divider(height: 12),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text('State Tax Reserve:', style: theme.textTheme.bodySmall),
+                                  Text(cur.format(q.stateTax), style: theme.textTheme.bodySmall),
+                                ],
+                              ),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text('Federal Tax Reserve:', style: theme.textTheme.bodySmall),
+                                  Text(cur.format(q.federalTax), style: theme.textTheme.bodySmall),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    '→ Must Stay in Bank:',
+                                    style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.bold),
+                                  ),
+                                  Text(
+                                    cur.format(q.totalTaxReserve),
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                      color: theme.colorScheme.primary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    '→ Withdrawn (Operating):',
+                                    style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                                  ),
+                                  Text(
+                                    cur.format(q.takeHomeWithdrawn),
+                                    style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        )),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                icon: const Icon(Icons.copy_all),
+                label: const Text('Copy Full Bank Ledger Summary'),
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: summary.toClipboardSummary()));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Bank reserve ledger copied to clipboard!')),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 32),
+          ],
+        );
+      },
     );
   }
 
