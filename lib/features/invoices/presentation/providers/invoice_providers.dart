@@ -7,6 +7,8 @@ import '../../../../core/constants/payment_terms.dart';
 import '../../../../core/providers/repository_providers.dart';
 import '../../../../core/repositories/invoice_repository.dart';
 import '../../../../core/repositories/user_profile_repository.dart';
+import '../../../../core/providers/theme_provider.dart';
+import '../../domain/entities/tax_bank_split.dart';
 import '../../../dashboard/presentation/providers/dashboard_provider.dart';
 
 // ── Status filter ──────────────────────────────────────────────────
@@ -562,3 +564,56 @@ class InvoiceNotifier extends AsyncNotifier<void> {
     ref.invalidate(monthlyIncomeProvider);
   }
 }
+
+// ── Bank Account Tax Split Providers (DEV-78) ──────────────────────
+
+class BankSplitFederalTaxRateNotifier extends Notifier<double> {
+  static const _key = 'tax.federal_rate';
+
+  @override
+  double build() {
+    _loadFromDao();
+    return 20.0;
+  }
+
+  Future<void> _loadFromDao() async {
+    try {
+      final dao = ref.read(appSettingsDaoProvider);
+      final raw = await dao.getValue(_key);
+      if (raw != null) {
+        final parsed = double.tryParse(raw);
+        if (parsed != null && parsed > 0) {
+          state = parsed <= 1.0 ? parsed * 100.0 : parsed;
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<void> setRate(double rate) async {
+    state = rate;
+    try {
+      final dao = ref.read(appSettingsDaoProvider);
+      await dao.setValue(_key, (rate / 100.0).toString());
+    } catch (_) {}
+  }
+}
+
+final bankSplitFederalTaxRateProvider =
+    NotifierProvider<BankSplitFederalTaxRateNotifier, double>(
+      BankSplitFederalTaxRateNotifier.new,
+    );
+
+final invoiceBankSplitProvider =
+    Provider.family<TaxBankSplit, Invoice>((ref, invoice) {
+      final fedRate = ref.watch(bankSplitFederalTaxRateProvider);
+      return TaxBankSplit.calculate(
+        subtotal: invoice.subtotal,
+        taxAmount: invoice.taxAmount,
+        taxRate: invoice.taxRate,
+        taxLabel: invoice.taxLabel,
+        federalTaxRate: fedRate,
+        lateFeeAmount: invoice.lateFeeAmount,
+        total: invoice.total,
+      );
+    });
+

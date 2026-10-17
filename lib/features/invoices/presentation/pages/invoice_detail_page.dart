@@ -11,6 +11,7 @@ import '../providers/invoice_providers.dart';
 import '../utils/line_item_format.dart';
 import '../widgets/invoice_status_badge.dart';
 import '../widgets/record_payment_dialog.dart';
+import '../widgets/tax_bank_split_card.dart';
 import '../../../../core/providers/repository_providers.dart';
 import '../../../clients/presentation/providers/client_providers.dart';
 import '../../../pdf_generation/presentation/pages/pdf_preview_page.dart';
@@ -566,6 +567,10 @@ class _InvoiceDetailBody extends ConsumerWidget {
           ),
         ),
 
+        // Bank Account Tax Split (DEV-78)
+        const SizedBox(height: 16),
+        TaxBankSplitCard(invoice: invoice),
+
         // Notes
         if (invoice.notes != null && invoice.notes!.isNotEmpty) ...[
           const SizedBox(height: 16),
@@ -672,6 +677,7 @@ class _InvoiceDetailBody extends ConsumerWidget {
                         invoiceId: inv.id,
                         balanceDue: balanceDue,
                         currency: inv.currency,
+                        invoice: inv,
                       ),
                     );
                     if (result == true) {
