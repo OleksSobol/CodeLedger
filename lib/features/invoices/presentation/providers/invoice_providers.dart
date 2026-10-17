@@ -109,6 +109,19 @@ class InvoiceWizardState {
     );
     return entriesTotal + manualTotal;
   }
+
+  /// Total duration in minutes of all selected time entries.
+  int get totalDurationMinutes {
+    return selectedEntries.fold<int>(
+      0,
+      (sum, e) => sum + (e.durationMinutes ?? 0),
+    );
+  }
+
+  /// Total hours of all selected time entries.
+  double get totalHours {
+    return totalDurationMinutes / 60.0;
+  }
 }
 
 class ManualLineItem {

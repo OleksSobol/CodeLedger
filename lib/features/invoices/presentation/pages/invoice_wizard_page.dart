@@ -428,16 +428,34 @@ class _EntriesBottomBar extends StatelessWidget {
         child: Row(
           children: [
             Expanded(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Row(
                 children: [
-                  Text('Subtotal', style: theme.textTheme.bodySmall),
-                  Text(
-                    formatCurrency(wizard.subtotal),
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Total Hours', style: theme.textTheme.bodySmall),
+                      Text(
+                        formatDuration(wizard.totalDurationMinutes),
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(width: 24),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Subtotal', style: theme.textTheme.bodySmall),
+                      Text(
+                        formatCurrency(wizard.subtotal),
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -472,7 +490,9 @@ class _EntriesBody extends ConsumerWidget {
           Row(
             children: [
               Text(
-                'Time Entries (${entries.length})',
+                wizard.selectedEntries.isNotEmpty
+                    ? 'Time Entries (${wizard.selectedEntries.length}/${entries.length}) · ${formatDuration(wizard.totalDurationMinutes)}'
+                    : 'Time Entries (${entries.length})',
                 style: theme.textTheme.titleSmall?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
@@ -712,10 +732,7 @@ class _ReviewStep extends ConsumerWidget {
     final clientAsync = ref.watch(clientByIdProvider(wizard.clientId!));
     final clientName = clientAsync.whenOrNull(data: (c) => c.name) ?? '...';
 
-    final totalHours = wizard.selectedEntries.fold<int>(
-      0,
-      (sum, e) => sum + (e.durationMinutes ?? 0),
-    );
+    final totalMinutes = wizard.totalDurationMinutes;
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -742,7 +759,7 @@ class _ReviewStep extends ConsumerWidget {
                 if (wizard.selectedEntries.isNotEmpty)
                   _SummaryRow(
                     label: 'Total Hours',
-                    value: formatDuration(totalHours),
+                    value: formatDuration(totalMinutes),
                   ),
                 if (wizard.manualLineItems.isNotEmpty)
                   _SummaryRow(

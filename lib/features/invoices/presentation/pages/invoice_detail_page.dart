@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../core/utils/currency_formatter.dart';
+import '../../../../core/utils/duration_formatter.dart';
 import '../providers/invoice_providers.dart';
 import '../utils/line_item_format.dart';
 import '../widgets/invoice_status_badge.dart';
@@ -302,6 +303,9 @@ class _InvoiceDetailBody extends ConsumerWidget {
     final clientAsync = ref.watch(clientByIdProvider(invoice.clientId));
     final clientName = clientAsync.whenOrNull(data: (c) => c.name) ?? '...';
     final balanceDue = invoice.total - invoice.amountPaid;
+    final totalHours = lineItemsAsync.whenOrNull(
+      data: (items) => items.fold<double>(0.0, (sum, i) => sum + i.quantity),
+    );
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -498,6 +502,12 @@ class _InvoiceDetailBody extends ConsumerWidget {
             padding: const EdgeInsets.all(16),
             child: Column(
               children: [
+                if (totalHours != null && totalHours > 0)
+                  _TotalRow(
+                    label: 'Total Hours',
+                    value:
+                        '${totalHours.toStringAsFixed(totalHours.truncateToDouble() == totalHours ? 0 : 2)} hrs (${formatDuration((totalHours * 60).round())})',
+                  ),
                 _TotalRow(
                   label: 'Subtotal',
                   value: formatCurrency(

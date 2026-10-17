@@ -110,6 +110,7 @@ class GitHubSyncNotifier extends AsyncNotifier<void> {
     emit('PAT ok. Loading projects…');
 
     final service = GitHubService(pat: pat, username: username, onLog: onLog);
+    try {
 
     final allProjects = await ref
         .read(projectRepositoryProvider)
@@ -156,9 +157,9 @@ class GitHubSyncNotifier extends AsyncNotifier<void> {
         accessOk[repo] = await service.verifyRepoAccess(repo);
       }
       if (accessOk[repo] == true && !branchCache.containsKey(repo)) {
-        emit('  Fetching Issue-* branches for $repo…');
-        branchCache[repo] = await service.listIssueBranches(repo);
-        emit('  $repo: ${branchCache[repo]!.length} Issue-* branch(es)');
+        emit('  Fetching your GitHub work history for $repo…');
+        branchCache[repo] = await service.listUserBranches(repo);
+        emit('  $repo: ${branchCache[repo]!.length} active user branch(es)');
       }
     }
 
@@ -272,6 +273,9 @@ class GitHubSyncNotifier extends AsyncNotifier<void> {
     emit('Scan complete — ${matches.length} match(es) found.');
 
     return GitHubSyncPreview(matches: matches, logs: List.from(service.logs));
+    } finally {
+      service.dispose();
+    }
   }
 
   /// Applies the selected matches, writing issue refs to time entries.
@@ -317,36 +321,39 @@ class GitHubSyncNotifier extends AsyncNotifier<void> {
     }
 
     final service = GitHubService(pat: pat, username: username);
-
-    String? authedAs;
-    String? patError;
     try {
-      authedAs = await service.verifyPat();
-    } catch (e) {
-      patError = e.toString();
-    }
-
-    final repoResults = <String, bool>{};
-    if (patError == null) {
-      final allProjects = await ref
-          .read(projectRepositoryProvider)
-          .watchAllActiveProjects()
-          .first;
-      final linkedRepos = allProjects
-          .where((p) => p.githubRepo != null && p.githubRepo!.isNotEmpty)
-          .map((p) => GitHubService.normalizeRepo(p.githubRepo!))
-          .toSet();
-
-      for (final repo in linkedRepos) {
-        repoResults[repo] = await service.verifyRepoAccess(repo);
+      String? authedAs;
+      String? patError;
+      try {
+        authedAs = await service.verifyPat();
+      } catch (e) {
+        patError = e.toString();
       }
-    }
 
-    return GitHubConnectionTest(
-      authedAs: authedAs,
-      patError: patError,
-      repoResults: repoResults,
-    );
+      final repoResults = <String, bool>{};
+      if (patError == null) {
+        final allProjects = await ref
+            .read(projectRepositoryProvider)
+            .watchAllActiveProjects()
+            .first;
+        final linkedRepos = allProjects
+            .where((p) => p.githubRepo != null && p.githubRepo!.isNotEmpty)
+            .map((p) => GitHubService.normalizeRepo(p.githubRepo!))
+            .toSet();
+
+        for (final repo in linkedRepos) {
+          repoResults[repo] = await service.verifyRepoAccess(repo);
+        }
+      }
+
+      return GitHubConnectionTest(
+        authedAs: authedAs,
+        patError: patError,
+        repoResults: repoResults,
+      );
+    } finally {
+      service.dispose();
+    }
   }
 
   String _fmtDate(DateTime d) =>
