@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../features/time_tracking/presentation/providers/time_entry_providers.dart';
 import '../../../features/time_tracking/presentation/widgets/clock_in_sheet.dart';
+import '../../../features/time_tracking/presentation/widgets/top_timer_notification_widget.dart';
 
 class ShellScaffold extends ConsumerWidget {
   final StatefulNavigationShell navigationShell;
@@ -13,6 +14,16 @@ class ShellScaffold extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final currentIndex = navigationShell.currentIndex;
     final isWide = MediaQuery.sizeOf(context).width >= 600;
+    final hasRunning =
+        ref.watch(runningEntriesProvider).value?.isNotEmpty ?? false;
+
+    final childContent = hasRunning
+        ? MediaQuery.removePadding(
+            context: context,
+            removeTop: true,
+            child: navigationShell,
+          )
+        : navigationShell;
 
     if (isWide) {
       return Scaffold(
@@ -57,14 +68,26 @@ class ShellScaffold extends ConsumerWidget {
               ],
             ),
             const VerticalDivider(thickness: 1, width: 1),
-            Expanded(child: navigationShell),
+            Expanded(
+              child: Column(
+                children: [
+                  const TopTimerNotificationWidget(),
+                  Expanded(child: childContent),
+                ],
+              ),
+            ),
           ],
         ),
       );
     }
 
     return Scaffold(
-      body: navigationShell,
+      body: Column(
+        children: [
+          const TopTimerNotificationWidget(),
+          Expanded(child: childContent),
+        ],
+      ),
       floatingActionButton: _buildFab(context, ref, currentIndex),
       bottomNavigationBar: NavigationBar(
         selectedIndex: currentIndex,
