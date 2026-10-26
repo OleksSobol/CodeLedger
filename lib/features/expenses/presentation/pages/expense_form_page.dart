@@ -220,7 +220,7 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
 
             // ── Category ──────────────────────────────────────────────────
             DropdownButtonFormField<String>(
-              value: _category,
+              initialValue: _category,
               decoration: const InputDecoration(
                 labelText: 'Category',
                 prefixIcon: Icon(Icons.category_outlined),

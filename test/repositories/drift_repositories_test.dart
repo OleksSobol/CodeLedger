@@ -11,8 +11,6 @@ import 'package:code_ledger/core/repositories/drift/drift_client_repository.dart
 import 'package:code_ledger/core/repositories/drift/drift_project_repository.dart';
 import 'package:code_ledger/core/repositories/drift/drift_time_entry_repository.dart';
 import 'package:code_ledger/core/repositories/drift/drift_user_profile_repository.dart';
-import 'package:code_ledger/core/database/daos/time_entry_dao.dart'
-    show OverlappingTimeEntryException;
 
 AppDatabase _openTestDb() => AppDatabase.forTesting(NativeDatabase.memory());
 
@@ -41,7 +39,7 @@ void main() {
     });
 
     test('getActiveClients excludes archived', () async {
-      final id = await repo.insertClient(
+      await repo.insertClient(
         const ClientsCompanion(name: Value('Active')),
       );
       await repo.insertClient(

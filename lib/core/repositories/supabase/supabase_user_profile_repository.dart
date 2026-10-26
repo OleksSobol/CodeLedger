@@ -102,74 +102,103 @@ class SupabaseUserProfileRepository implements UserProfileRepository {
     final map = <String, dynamic>{
       'updated_at': DateTime.now().toUtc().toIso8601String(),
     };
-    if (companion.businessName.present)
+    if (companion.businessName.present) {
       map['business_name'] = companion.businessName.value;
-    if (companion.ownerName.present)
+    }
+    if (companion.ownerName.present) {
       map['owner_name'] = companion.ownerName.value;
+    }
     if (companion.email.present) map['email'] = companion.email.value;
     if (companion.phone.present) map['phone'] = companion.phone.value;
-    if (companion.addressLine1.present)
+    if (companion.addressLine1.present) {
       map['address_line1'] = companion.addressLine1.value;
-    if (companion.addressLine2.present)
+    }
+    if (companion.addressLine2.present) {
       map['address_line2'] = companion.addressLine2.value;
+    }
     if (companion.city.present) map['city'] = companion.city.value;
-    if (companion.stateProvince.present)
+    if (companion.stateProvince.present) {
       map['state_province'] = companion.stateProvince.value;
-    if (companion.postalCode.present)
+    }
+    if (companion.postalCode.present) {
       map['postal_code'] = companion.postalCode.value;
+    }
     if (companion.country.present) map['country'] = companion.country.value;
     if (companion.taxId.present) map['tax_id'] = companion.taxId.value;
-    if (companion.showTaxId.present)
+    if (companion.showTaxId.present) {
       map['show_tax_id'] = companion.showTaxId.value;
-    if (companion.waBusinessLicense.present)
+    }
+    if (companion.waBusinessLicense.present) {
       map['wa_business_license'] = companion.waBusinessLicense.value;
-    if (companion.showWaLicense.present)
+    }
+    if (companion.showWaLicense.present) {
       map['show_wa_license'] = companion.showWaLicense.value;
+    }
     if (companion.logoPath.present) map['logo_path'] = companion.logoPath.value;
     if (companion.bankName.present) map['bank_name'] = companion.bankName.value;
-    if (companion.bankAccountName.present)
+    if (companion.bankAccountName.present) {
       map['bank_account_name'] = companion.bankAccountName.value;
-    if (companion.bankAccountNumber.present)
+    }
+    if (companion.bankAccountNumber.present) {
       map['bank_account_number'] = companion.bankAccountNumber.value;
-    if (companion.bankRoutingNumber.present)
+    }
+    if (companion.bankRoutingNumber.present) {
       map['bank_routing_number'] = companion.bankRoutingNumber.value;
-    if (companion.bankAccountType.present)
+    }
+    if (companion.bankAccountType.present) {
       map['bank_account_type'] = companion.bankAccountType.value;
-    if (companion.bankSwift.present)
+    }
+    if (companion.bankSwift.present) {
       map['bank_swift'] = companion.bankSwift.value;
+    }
     if (companion.bankIban.present) map['bank_iban'] = companion.bankIban.value;
-    if (companion.showBankDetails.present)
+    if (companion.showBankDetails.present) {
       map['show_bank_details'] = companion.showBankDetails.value;
-    if (companion.stripePaymentLink.present)
+    }
+    if (companion.stripePaymentLink.present) {
       map['stripe_payment_link'] = companion.stripePaymentLink.value;
-    if (companion.showStripeLink.present)
+    }
+    if (companion.showStripeLink.present) {
       map['show_stripe_link'] = companion.showStripeLink.value;
-    if (companion.paymentInstructions.present)
+    }
+    if (companion.paymentInstructions.present) {
       map['payment_instructions'] = companion.paymentInstructions.value;
-    if (companion.defaultCurrency.present)
+    }
+    if (companion.defaultCurrency.present) {
       map['default_currency'] = companion.defaultCurrency.value;
-    if (companion.defaultHourlyRate.present)
+    }
+    if (companion.defaultHourlyRate.present) {
       map['default_hourly_rate'] = companion.defaultHourlyRate.value;
-    if (companion.defaultTaxLabel.present)
+    }
+    if (companion.defaultTaxLabel.present) {
       map['default_tax_label'] = companion.defaultTaxLabel.value;
-    if (companion.defaultTaxRate.present)
+    }
+    if (companion.defaultTaxRate.present) {
       map['default_tax_rate'] = companion.defaultTaxRate.value;
-    if (companion.defaultPaymentTerms.present)
+    }
+    if (companion.defaultPaymentTerms.present) {
       map['default_payment_terms'] = companion.defaultPaymentTerms.value;
-    if (companion.defaultPaymentTermsDays.present)
+    }
+    if (companion.defaultPaymentTermsDays.present) {
       map['default_payment_terms_days'] =
           companion.defaultPaymentTermsDays.value;
-    if (companion.lateFeePercentage.present)
+    }
+    if (companion.lateFeePercentage.present) {
       map['late_fee_percentage'] = companion.lateFeePercentage.value;
-    if (companion.defaultTemplateId.present)
+    }
+    if (companion.defaultTemplateId.present) {
       map['default_template_id'] = companion.defaultTemplateId.value;
-    if (companion.defaultEmailSubjectFormat.present)
+    }
+    if (companion.defaultEmailSubjectFormat.present) {
       map['default_email_subject_format'] =
           companion.defaultEmailSubjectFormat.value;
-    if (companion.nextInvoiceNumber.present)
+    }
+    if (companion.nextInvoiceNumber.present) {
       map['next_invoice_number'] = companion.nextInvoiceNumber.value;
-    if (companion.invoiceNumberPrefix.present)
+    }
+    if (companion.invoiceNumberPrefix.present) {
       map['invoice_number_prefix'] = companion.invoiceNumberPrefix.value;
+    }
     final result = await _client
         .from('user_profiles')
         .update(map)

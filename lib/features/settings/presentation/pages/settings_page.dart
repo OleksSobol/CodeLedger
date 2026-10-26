@@ -267,12 +267,13 @@ class _SyncStatusTileState extends ConsumerState<_SyncStatusTile> {
 
     final (label, color, icon) = statusAsync.when(
       data: (status) {
-        if (status == null)
+        if (status == null) {
           return (
             'Sign in to sync',
             theme.colorScheme.outline,
             Icons.cloud_off_outlined,
           );
+        }
         return switch (status.state) {
           SyncState.syncing => (
             'Syncing…',

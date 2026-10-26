@@ -3069,21 +3069,18 @@ class _SummaryRow extends StatelessWidget {
   final String value;
   final ThemeData theme;
   final bool bold;
-  final Color? color;
 
   const _SummaryRow(
     this.label,
     this.value,
     this.theme, {
     this.bold = false,
-    this.color,
   });
 
   @override
   Widget build(BuildContext context) {
     final style = theme.textTheme.bodySmall?.copyWith(
       fontWeight: bold ? FontWeight.bold : null,
-      color: color,
     );
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),

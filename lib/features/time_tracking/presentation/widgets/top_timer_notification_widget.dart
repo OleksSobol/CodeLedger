@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import '../../../../core/database/app_database.dart';
 import '../../../../core/database/daos/time_entry_dao.dart';
 import '../../../clients/presentation/providers/client_providers.dart';
 import '../providers/time_entry_providers.dart';
@@ -24,7 +23,6 @@ class _TopTimerNotificationWidgetState
   Timer? _ticker;
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
-  bool _isCompact = false;
 
   @override
   void initState() {
@@ -60,7 +58,7 @@ class _TopTimerNotificationWidgetState
     return '$hours:$minutes:$seconds';
   }
 
-  Future<void> _clockOut(BuildContext context, String entryId) async {
+  Future<void> _clockOut(String entryId) async {
     final messenger = ScaffoldMessenger.of(context);
     try {
       await ref.read(timerNotifierProvider.notifier).clockOut(entryId);
@@ -261,7 +259,7 @@ class _TopTimerNotificationWidgetState
                             padding: EdgeInsets.zero,
                           ),
                           tooltip: 'Clock out',
-                          onPressed: () => _clockOut(context, primaryEntry.id),
+                          onPressed: () => _clockOut(primaryEntry.id),
                         ),
                       ],
                     ),
@@ -274,7 +272,7 @@ class _TopTimerNotificationWidgetState
       );
       },
       loading: () => const SizedBox.shrink(),
-      error: (_, __) => const SizedBox.shrink(),
+      error: (_, _) => const SizedBox.shrink(),
     );
   }
 }

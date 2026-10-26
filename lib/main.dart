@@ -11,7 +11,7 @@ void main() {
     () async {
       WidgetsFlutterBinding.ensureInitialized();
 
-      await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
+      await Supabase.initialize(url: supabaseUrl, publishableKey: supabaseAnonKey);
 
       // Catch Flutter framework errors (layout, rendering, etc.)
       FlutterError.onError = (details) {

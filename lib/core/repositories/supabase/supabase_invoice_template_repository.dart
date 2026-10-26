@@ -84,45 +84,64 @@ class SupabaseInvoiceTemplateRepository implements InvoiceTemplateRepository {
       'updated_at': DateTime.now().toUtc().toIso8601String(),
     };
     if (companion.name.present) map['name'] = companion.name.value;
-    if (companion.templateKey.present)
+    if (companion.templateKey.present) {
       map['template_key'] = companion.templateKey.value;
-    if (companion.description.present)
+    }
+    if (companion.description.present) {
       map['description'] = companion.description.value;
-    if (companion.isDefault.present)
+    }
+    if (companion.isDefault.present) {
       map['is_default'] = companion.isDefault.value;
-    if (companion.primaryColor.present)
+    }
+    if (companion.primaryColor.present) {
       map['primary_color'] = companion.primaryColor.value;
-    if (companion.accentColor.present)
+    }
+    if (companion.accentColor.present) {
       map['accent_color'] = companion.accentColor.value;
-    if (companion.fontFamily.present)
+    }
+    if (companion.fontFamily.present) {
       map['font_family'] = companion.fontFamily.value;
+    }
     if (companion.showLogo.present) map['show_logo'] = companion.showLogo.value;
-    if (companion.showPaymentInfo.present)
+    if (companion.showPaymentInfo.present) {
       map['show_payment_info'] = companion.showPaymentInfo.value;
-    if (companion.showTaxBreakdown.present)
+    }
+    if (companion.showTaxBreakdown.present) {
       map['show_tax_breakdown'] = companion.showTaxBreakdown.value;
-    if (companion.showTaxId.present)
+    }
+    if (companion.showTaxId.present) {
       map['show_tax_id'] = companion.showTaxId.value;
-    if (companion.showBusinessLicense.present)
+    }
+    if (companion.showBusinessLicense.present) {
       map['show_business_license'] = companion.showBusinessLicense.value;
-    if (companion.showBankDetails.present)
+    }
+    if (companion.showBankDetails.present) {
       map['show_bank_details'] = companion.showBankDetails.value;
-    if (companion.showStripeLink.present)
+    }
+    if (companion.showStripeLink.present) {
       map['show_stripe_link'] = companion.showStripeLink.value;
-    if (companion.showDetailedBreakdown.present)
+    }
+    if (companion.showDetailedBreakdown.present) {
       map['show_detailed_breakdown'] = companion.showDetailedBreakdown.value;
-    if (companion.showPaymentTerms.present)
+    }
+    if (companion.showPaymentTerms.present) {
       map['show_payment_terms'] = companion.showPaymentTerms.value;
-    if (companion.showLateFeeClause.present)
+    }
+    if (companion.showLateFeeClause.present) {
       map['show_late_fee_clause'] = companion.showLateFeeClause.value;
-    if (companion.showDescription.present)
+    }
+    if (companion.showDescription.present) {
       map['show_description'] = companion.showDescription.value;
-    if (companion.footerText.present)
+    }
+    if (companion.footerText.present) {
       map['footer_text'] = companion.footerText.value;
-    if (companion.isBuiltIn.present)
+    }
+    if (companion.isBuiltIn.present) {
       map['is_built_in'] = companion.isBuiltIn.value;
-    if (companion.lineItemDisplayMode.present)
+    }
+    if (companion.lineItemDisplayMode.present) {
       map['line_item_display_mode'] = companion.lineItemDisplayMode.value;
+    }
     final result = await _client
         .from('invoice_templates')
         .update(map)

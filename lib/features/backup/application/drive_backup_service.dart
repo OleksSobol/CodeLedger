@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
 import 'package:http/http.dart' as http;
@@ -10,7 +11,6 @@ import '../../../core/utils/google_sign_in_utils.dart';
 ///
 /// Uploads encrypted backup files to `/CodeLedger/` folder on Drive.
 class DriveBackupService {
-  static const _scopes = [drive.DriveApi.driveFileScope];
 
   GoogleSignInAccount? _currentUser;
   drive.DriveApi? _driveApi;
@@ -134,7 +134,7 @@ class DriveBackupService {
     try {
       return await signIn.signIn();
     } catch (e) {
-      print('Unknown exception during signIn: $e');
+      debugPrint('Unknown exception during signIn: $e');
       return null;
     }
   }

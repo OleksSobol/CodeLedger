@@ -221,8 +221,9 @@ class MinimalTemplate extends BaseInvoiceTemplate {
     final hours = data.totalHours;
     final rows = <pw.Widget>[];
 
-    if (hours > 0)
+    if (hours > 0) {
       rows.add(_totalLine('Total Hours', '${hours.toStringAsFixed(2)}h'));
+    }
     rows.add(_totalLine('Subtotal', fmtCurrency(inv.subtotal)));
 
     if (inv.taxRate > 0) {

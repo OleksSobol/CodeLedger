@@ -36,9 +36,8 @@ class _TimeEntryLayoutPageState extends ConsumerState<TimeEntryLayoutPage> {
     });
   }
 
-  void _reorder(int oldIndex, int newIndex) {
+  void _reorderItem(int oldIndex, int newIndex) {
     setState(() {
-      if (newIndex > oldIndex) newIndex--;
       final items = List<FieldConfig>.from(_configs);
       final moved = items.removeAt(oldIndex);
       items.insert(newIndex, moved);
@@ -142,7 +141,7 @@ class _TimeEntryLayoutPageState extends ConsumerState<TimeEntryLayoutPage> {
               buildDefaultDragHandles: false,
               padding: EdgeInsets.zero,
               itemCount: _configs.length,
-              onReorder: _reorder,
+              onReorderItem: _reorderItem,
               itemBuilder: (context, index) {
                 final cfg = _configs[index];
                 return _FieldRow(

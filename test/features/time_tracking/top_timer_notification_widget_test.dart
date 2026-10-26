@@ -1,18 +1,11 @@
-import 'package:drift/drift.dart' hide isNull, isNotNull;
-import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:code_ledger/core/database/app_database.dart';
-import 'package:code_ledger/core/providers/database_provider.dart';
-import 'package:code_ledger/core/providers/repository_providers.dart';
-import 'package:code_ledger/core/providers/theme_provider.dart';
 import 'package:code_ledger/features/clients/presentation/providers/client_providers.dart';
 import 'package:code_ledger/features/time_tracking/presentation/providers/time_entry_providers.dart';
 import 'package:code_ledger/features/time_tracking/presentation/widgets/top_timer_notification_widget.dart';
-
-AppDatabase _openTestDb() => AppDatabase.forTesting(NativeDatabase.memory());
 
 void main() {
   group('TopTimerNotificationWidget (DEV-75)', () {

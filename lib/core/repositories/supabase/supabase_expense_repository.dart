@@ -98,8 +98,9 @@ class SupabaseExpenseRepository implements ExpenseRepository {
     if (companion.name.present) map['name'] = companion.name.value;
     if (companion.category.present) map['category'] = companion.category.value;
     if (companion.amount.present) map['amount'] = companion.amount.value;
-    if (companion.frequency.present)
+    if (companion.frequency.present) {
       map['frequency'] = companion.frequency.value;
+    }
     if (companion.deductionMethod.present) {
       map['deduction_method'] = companion.deductionMethod.value;
     }

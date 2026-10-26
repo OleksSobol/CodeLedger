@@ -112,34 +112,44 @@ class SupabaseClientRepository implements ClientRepository {
       'updated_at': DateTime.now().toUtc().toIso8601String(),
     };
     if (companion.name.present) map['name'] = companion.name.value;
-    if (companion.contactName.present)
+    if (companion.contactName.present) {
       map['contact_name'] = companion.contactName.value;
+    }
     if (companion.email.present) map['email'] = companion.email.value;
     if (companion.phone.present) map['phone'] = companion.phone.value;
-    if (companion.addressLine1.present)
+    if (companion.addressLine1.present) {
       map['address_line1'] = companion.addressLine1.value;
-    if (companion.addressLine2.present)
+    }
+    if (companion.addressLine2.present) {
       map['address_line2'] = companion.addressLine2.value;
+    }
     if (companion.city.present) map['city'] = companion.city.value;
-    if (companion.stateProvince.present)
+    if (companion.stateProvince.present) {
       map['state_province'] = companion.stateProvince.value;
-    if (companion.postalCode.present)
+    }
+    if (companion.postalCode.present) {
       map['postal_code'] = companion.postalCode.value;
+    }
     if (companion.country.present) map['country'] = companion.country.value;
-    if (companion.hourlyRate.present)
+    if (companion.hourlyRate.present) {
       map['hourly_rate'] = companion.hourlyRate.value;
+    }
     if (companion.currency.present) map['currency'] = companion.currency.value;
     if (companion.taxRate.present) map['tax_rate'] = companion.taxRate.value;
-    if (companion.defaultTemplateId.present)
+    if (companion.defaultTemplateId.present) {
       map['default_template_id'] = companion.defaultTemplateId.value;
-    if (companion.paymentTermsOverride.present)
+    }
+    if (companion.paymentTermsOverride.present) {
       map['payment_terms_override'] = companion.paymentTermsOverride.value;
-    if (companion.paymentTermsDaysOverride.present)
+    }
+    if (companion.paymentTermsDaysOverride.present) {
       map['payment_terms_days_override'] =
           companion.paymentTermsDaysOverride.value;
+    }
     if (companion.notes.present) map['notes'] = companion.notes.value;
-    if (companion.isArchived.present)
+    if (companion.isArchived.present) {
       map['is_archived'] = companion.isArchived.value;
+    }
     final result = await _client
         .from('clients')
         .update(map)

@@ -39,7 +39,7 @@ class _CodeLedgerAppState extends ConsumerState<CodeLedgerApp> {
             body: Center(child: CircularProgressIndicator()),
           ),
         ),
-        error: (_, __) => MaterialApp(
+        error: (_, _) => MaterialApp(
           debugShowCheckedModeBanner: false,
           theme: AppTheme.light,
           darkTheme: AppTheme.dark,

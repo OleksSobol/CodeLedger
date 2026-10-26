@@ -179,10 +179,12 @@ class SimpleWorkReportTemplate implements ReportTemplate {
         final desc = e.description ?? '';
 
         final refs = <String>[];
-        if (e.repository != null && e.repository!.isNotEmpty)
+        if (e.repository != null && e.repository!.isNotEmpty) {
           refs.add(e.repository!);
-        if (e.issueReference != null && e.issueReference!.isNotEmpty)
+        }
+        if (e.issueReference != null && e.issueReference!.isNotEmpty) {
           refs.add(e.issueReference!);
+        }
         final refStr = refs.join(' ');
 
         rows.add([

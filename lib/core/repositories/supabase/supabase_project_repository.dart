@@ -99,16 +99,20 @@ class SupabaseProjectRepository implements ProjectRepository {
     };
     if (companion.clientId.present) map['client_id'] = companion.clientId.value;
     if (companion.name.present) map['name'] = companion.name.value;
-    if (companion.description.present)
+    if (companion.description.present) {
       map['description'] = companion.description.value;
-    if (companion.hourlyRateOverride.present)
+    }
+    if (companion.hourlyRateOverride.present) {
       map['hourly_rate_override'] = companion.hourlyRateOverride.value;
+    }
     if (companion.color.present) map['color'] = companion.color.value;
-    if (companion.githubRepo.present)
+    if (companion.githubRepo.present) {
       map['github_repo'] = companion.githubRepo.value;
+    }
     if (companion.isActive.present) map['is_active'] = companion.isActive.value;
-    if (companion.isArchived.present)
+    if (companion.isArchived.present) {
       map['is_archived'] = companion.isArchived.value;
+    }
     final result = await _client
         .from('projects')
         .update(map)

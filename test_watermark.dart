@@ -24,5 +24,6 @@ void main() async {
   );
 
   final bytes = await doc.save();
+  // ignore: avoid_print
   print('Saved ${bytes.length} bytes');
 }

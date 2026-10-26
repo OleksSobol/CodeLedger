@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../core/utils/currency_formatter.dart';
-import '../../domain/entities/tax_bank_split.dart';
 import '../providers/invoice_providers.dart';
 
 /// Interactive card on InvoiceDetailPage showing the recommended bank account split

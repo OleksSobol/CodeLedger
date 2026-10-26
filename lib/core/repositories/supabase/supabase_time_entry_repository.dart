@@ -403,30 +403,38 @@ class SupabaseTimeEntryRepository implements TimeEntryRepository {
       'updated_at': DateTime.now().toUtc().toIso8601String(),
     };
     if (companion.clientId.present) map['client_id'] = companion.clientId.value;
-    if (companion.projectId.present)
+    if (companion.projectId.present) {
       map['project_id'] = companion.projectId.value;
+    }
     if (companion.startTime.present) {
       map['start_time'] = companion.startTime.value.toUtc().toIso8601String();
     }
     if (companion.endTime.present) {
       map['end_time'] = companion.endTime.value?.toUtc().toIso8601String();
     }
-    if (companion.durationMinutes.present)
+    if (companion.durationMinutes.present) {
       map['duration_minutes'] = companion.durationMinutes.value;
-    if (companion.description.present)
+    }
+    if (companion.description.present) {
       map['description'] = companion.description.value;
-    if (companion.issueReference.present)
+    }
+    if (companion.issueReference.present) {
       map['issue_reference'] = companion.issueReference.value;
-    if (companion.repository.present)
+    }
+    if (companion.repository.present) {
       map['repository'] = companion.repository.value;
+    }
     if (companion.tags.present) map['tags'] = companion.tags.value;
     if (companion.isManual.present) map['is_manual'] = companion.isManual.value;
-    if (companion.hourlyRateSnapshot.present)
+    if (companion.hourlyRateSnapshot.present) {
       map['hourly_rate_snapshot'] = companion.hourlyRateSnapshot.value;
-    if (companion.isInvoiced.present)
+    }
+    if (companion.isInvoiced.present) {
       map['is_invoiced'] = companion.isInvoiced.value;
-    if (companion.invoiceId.present)
+    }
+    if (companion.invoiceId.present) {
       map['invoice_id'] = companion.invoiceId.value;
+    }
     final result = await _client
         .from('time_entries')
         .update(map)
