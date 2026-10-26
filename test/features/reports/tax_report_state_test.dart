@@ -4,20 +4,28 @@ import 'package:code_ledger/features/reports/data/models/tax_report_data.dart';
 
 void main() {
   group('TaxReportData State Apportionment', () {
-    const profile = UserProfile(
-      id: 1,
+    final now = DateTime(2026, 7, 1);
+    final profile = UserProfile(
+      id: 'profile-1',
       businessName: 'My Dev Business',
       ownerName: 'Dev',
       stateProvince: 'WA',
+      showTaxId: true,
+      showWaLicense: false,
+      bankAccountType: 'checking',
+      showBankDetails: true,
+      showStripeLink: false,
+      defaultCurrency: 'USD',
+      defaultHourlyRate: 100.0,
       defaultTaxRate: 6.5,
       defaultTaxLabel: 'WA Sales Tax',
-      defaultCurrency: 'USD',
-      invoiceNumberPrefix: 'INV-',
-      nextInvoiceNumber: 1,
       defaultPaymentTerms: 'net30',
       defaultPaymentTermsDays: 30,
-      createdAt: null,
-      updatedAt: null,
+      defaultEmailSubjectFormat: 'Invoice #{number}',
+      invoiceNumberPrefix: 'INV-',
+      nextInvoiceNumber: 1,
+      createdAt: now,
+      updatedAt: now,
     );
 
     Invoice makeInvoice({
@@ -38,9 +46,13 @@ void main() {
         taxRate: taxRate,
         taxLabel: 'Tax',
         taxAmount: taxAmount,
+        lateFeeAmount: 0.0,
         total: subtotal + taxAmount,
         amountPaid: subtotal + taxAmount,
         currency: 'USD',
+        templateType: 'standard',
+        createdAt: now,
+        updatedAt: now,
       );
     }
 
@@ -112,4 +124,3 @@ void main() {
     });
   });
 }
-
