@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -11,6 +10,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../../../core/constants/us_states.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../core/providers/repository_providers.dart';
 import '../../../../core/providers/theme_provider.dart';
@@ -18,8 +18,8 @@ import '../../../clients/presentation/providers/client_providers.dart';
 import '../../../export/presentation/providers/export_providers.dart';
 import '../../../expenses/presentation/providers/expense_providers.dart';
 import '../../../invoices/presentation/providers/invoice_providers.dart';
+import '../../../profile/presentation/providers/profile_provider.dart';
 import 'package:flutter/services.dart';
-import '../../domain/models/bank_tax_reserve_summary.dart';
 import '../providers/tax_reserve_providers.dart';
 import '../../data/models/tax_report_data.dart';
 import '../../data/templates/tax_report_template.dart';
@@ -286,12 +286,16 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
     }).toList()..sort((a, b) => a.issueDate.compareTo(b.issueDate));
 
     final names = <String, String>{};
+    final states = <String, String?>{};
     for (final inv in filtered) {
       if (!names.containsKey(inv.clientId)) {
         try {
-          names[inv.clientId] = (await clientDao.getClient(inv.clientId)).name;
+          final c = await clientDao.getClient(inv.clientId);
+          names[inv.clientId] = c.name;
+          states[inv.clientId] = c.stateProvince;
         } catch (_) {
           names[inv.clientId] = 'Unknown Client';
+          states[inv.clientId] = null;
         }
       }
     }
@@ -315,8 +319,11 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
       endDate: _dateRange!.end,
       rows: filtered
           .map(
-            (inv) =>
-                TaxReportRow(invoice: inv, clientName: names[inv.clientId]!),
+            (inv) => TaxReportRow(
+              invoice: inv,
+              clientName: names[inv.clientId]!,
+              clientState: states[inv.clientId],
+            ),
           )
           .toList(),
       clientFilterName: _selectedClientId != null
@@ -442,10 +449,14 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
       error: (e, st) => Center(child: Text('Error loading bank reserve: $e')),
       data: (summary) {
         final takeHomePct = summary.totalGrossCollected > 0
-            ? (summary.totalTakeHomeWithdrawn / summary.totalGrossCollected * 100).toStringAsFixed(1)
+            ? (summary.totalTakeHomeWithdrawn /
+                      summary.totalGrossCollected *
+                      100)
+                  .toStringAsFixed(1)
             : '0.0';
         final taxReservePct = summary.totalGrossCollected > 0
-            ? (summary.totalBankReserve / summary.totalGrossCollected * 100).toStringAsFixed(1)
+            ? (summary.totalBankReserve / summary.totalGrossCollected * 100)
+                  .toStringAsFixed(1)
             : '0.0';
 
         return ListView(
@@ -458,16 +469,20 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                 IconButton.filledTonal(
                   icon: const Icon(Icons.chevron_left),
                   tooltip: 'Previous Year',
-                  onPressed: () => ref.read(bankReserveYearProvider.notifier).decrement(),
+                  onPressed: () =>
+                      ref.read(bankReserveYearProvider.notifier).decrement(),
                 ),
                 Text(
                   '$selectedYear Tax Bank Ledger',
-                  style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 IconButton.filledTonal(
                   icon: const Icon(Icons.chevron_right),
                   tooltip: 'Next Year',
-                  onPressed: () => ref.read(bankReserveYearProvider.notifier).increment(),
+                  onPressed: () =>
+                      ref.read(bankReserveYearProvider.notifier).increment(),
                 ),
               ],
             ),
@@ -511,7 +526,8 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                               Text(
                                 'Dedicated Tax Savings Account',
                                 style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.onPrimaryContainer.withAlpha(200),
+                                  color: theme.colorScheme.onPrimaryContainer
+                                      .withAlpha(200),
                                 ),
                               ),
                             ],
@@ -521,9 +537,15 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                           icon: const Icon(Icons.copy_all, size: 20),
                           tooltip: 'Copy Bank Ledger Summary',
                           onPressed: () {
-                            Clipboard.setData(ClipboardData(text: summary.toClipboardSummary()));
+                            Clipboard.setData(
+                              ClipboardData(text: summary.toClipboardSummary()),
+                            );
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Bank reserve summary copied to clipboard!')),
+                              const SnackBar(
+                                content: Text(
+                                  'Bank reserve summary copied to clipboard!',
+                                ),
+                              ),
                             );
                           },
                         ),
@@ -541,7 +563,9 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                     Text(
                       'Keep this balance untouched in your high-yield tax bank account to pay Washington DOR and IRS estimated taxes.',
                       style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onPrimaryContainer.withAlpha(210),
+                        color: theme.colorScheme.onPrimaryContainer.withAlpha(
+                          210,
+                        ),
                       ),
                     ),
                   ],
@@ -559,12 +583,16 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                   children: [
                     Text(
                       'Realistic Invoices & Withdrawals',
-                      style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       'Reconciliation of all invoices and what was taken out for personal / operating pay.',
-                      style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
                     ),
                     const SizedBox(height: 16),
                     _SummaryRow(
@@ -591,14 +619,18 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                       child: Row(
                         children: [
                           Expanded(
-                            flex: (summary.totalTakeHomeWithdrawn * 100).toInt().clamp(1, 1000000),
+                            flex: (summary.totalTakeHomeWithdrawn * 100)
+                                .toInt()
+                                .clamp(1, 1000000),
                             child: Container(
                               height: 10,
                               color: theme.colorScheme.primary,
                             ),
                           ),
                           Expanded(
-                            flex: (summary.totalBankReserve * 100).toInt().clamp(1, 1000000),
+                            flex: (summary.totalBankReserve * 100)
+                                .toInt()
+                                .clamp(1, 1000000),
                             child: Container(
                               height: 10,
                               color: theme.colorScheme.tertiary,
@@ -611,8 +643,14 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('Take-home: $takeHomePct%', style: theme.textTheme.bodySmall),
-                        Text('Tax Reserve: $taxReservePct%', style: theme.textTheme.bodySmall),
+                        Text(
+                          'Take-home: $takeHomePct%',
+                          style: theme.textTheme.bodySmall,
+                        ),
+                        Text(
+                          'Tax Reserve: $taxReservePct%',
+                          style: theme.textTheme.bodySmall,
+                        ),
                       ],
                     ),
                   ],
@@ -639,7 +677,9 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                               Expanded(
                                 child: Text(
                                   'WA State Tax',
-                                  style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                                  style: theme.textTheme.titleSmall?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
@@ -647,15 +687,36 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                           ),
                           const Divider(height: 16),
                           Text('Sales Tax', style: theme.textTheme.bodySmall),
-                          Text(cur.format(summary.totalSalesTax), style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
+                          Text(
+                            cur.format(summary.totalSalesTax),
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                           const SizedBox(height: 8),
-                          Text('B&O (${(summary.boRate * 100).toStringAsFixed(2)}%)', style: theme.textTheme.bodySmall),
-                          Text(cur.format(summary.totalBoTax), style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
+                          Text(
+                            'B&O (${(summary.boRate * 100).toStringAsFixed(2)}%)',
+                            style: theme.textTheme.bodySmall,
+                          ),
+                          Text(
+                            cur.format(summary.totalBoTax),
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                           const Divider(height: 16),
-                          Text('Total State', style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.bold)),
+                          Text(
+                            'Total State',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                           Text(
                             cur.format(summary.totalStateTax),
-                            style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold, color: theme.colorScheme.primary),
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: theme.colorScheme.primary,
+                            ),
                           ),
                         ],
                       ),
@@ -677,23 +738,49 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                               Expanded(
                                 child: Text(
                                   'Federal Tax',
-                                  style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                                  style: theme.textTheme.titleSmall?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
                             ],
                           ),
                           const Divider(height: 16),
-                          Text('SE (${(summary.seRate * 100).toStringAsFixed(1)}%)', style: theme.textTheme.bodySmall),
-                          Text(cur.format(summary.seTax), style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
+                          Text(
+                            'SE (${(summary.seRate * 100).toStringAsFixed(1)}%)',
+                            style: theme.textTheme.bodySmall,
+                          ),
+                          Text(
+                            cur.format(summary.seTax),
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                           const SizedBox(height: 8),
-                          Text('Income (${(summary.federalRate * 100).toStringAsFixed(1)}%)', style: theme.textTheme.bodySmall),
-                          Text(cur.format(summary.federalIncomeTax), style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
+                          Text(
+                            'Income (${(summary.federalRate * 100).toStringAsFixed(1)}%)',
+                            style: theme.textTheme.bodySmall,
+                          ),
+                          Text(
+                            cur.format(summary.federalIncomeTax),
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                           const Divider(height: 16),
-                          Text('Total Federal', style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.bold)),
+                          Text(
+                            'Total Federal',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                           Text(
                             cur.format(summary.totalFederalTax),
-                            style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold, color: theme.colorScheme.tertiary),
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: theme.colorScheme.tertiary,
+                            ),
                           ),
                         ],
                       ),
@@ -713,81 +800,109 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                   children: [
                     Text(
                       'Quarterly Bank Ledger ($selectedYear)',
-                      style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 12),
-                    ...summary.quarters.map((q) => Container(
-                          margin: const EdgeInsets.only(bottom: 10),
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.surfaceContainerLow,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: theme.colorScheme.outlineVariant.withAlpha(80)),
+                    ...summary.quarters.map(
+                      (q) => Container(
+                        margin: const EdgeInsets.only(bottom: 10),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surfaceContainerLow,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: theme.colorScheme.outlineVariant.withAlpha(
+                              80,
+                            ),
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    q.label,
-                                    style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  q.label,
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
                                   ),
-                                  Text(
-                                    '${q.invoicesCount} ${q.invoicesCount == 1 ? 'inv' : 'invs'} · Invoiced ${cur.format(q.grossCollected)}',
-                                    style: theme.textTheme.bodySmall,
+                                ),
+                                Text(
+                                  '${q.invoicesCount} ${q.invoicesCount == 1 ? 'inv' : 'invs'} · Invoiced ${cur.format(q.grossCollected)}',
+                                  style: theme.textTheme.bodySmall,
+                                ),
+                              ],
+                            ),
+                            const Divider(height: 12),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'State Tax Reserve:',
+                                  style: theme.textTheme.bodySmall,
+                                ),
+                                Text(
+                                  cur.format(q.stateTax),
+                                  style: theme.textTheme.bodySmall,
+                                ),
+                              ],
+                            ),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Federal Tax Reserve:',
+                                  style: theme.textTheme.bodySmall,
+                                ),
+                                Text(
+                                  cur.format(q.federalTax),
+                                  style: theme.textTheme.bodySmall,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  '→ Must Stay in Bank:',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    fontWeight: FontWeight.bold,
                                   ),
-                                ],
-                              ),
-                              const Divider(height: 12),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text('State Tax Reserve:', style: theme.textTheme.bodySmall),
-                                  Text(cur.format(q.stateTax), style: theme.textTheme.bodySmall),
-                                ],
-                              ),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text('Federal Tax Reserve:', style: theme.textTheme.bodySmall),
-                                  Text(cur.format(q.federalTax), style: theme.textTheme.bodySmall),
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    '→ Must Stay in Bank:',
-                                    style: theme.textTheme.bodySmall?.copyWith(fontWeight: FontWeight.bold),
+                                ),
+                                Text(
+                                  cur.format(q.totalTaxReserve),
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: theme.colorScheme.primary,
                                   ),
-                                  Text(
-                                    cur.format(q.totalTaxReserve),
-                                    style: theme.textTheme.bodySmall?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                      color: theme.colorScheme.primary,
-                                    ),
+                                ),
+                              ],
+                            ),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  '→ Withdrawn (Operating):',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
                                   ),
-                                ],
-                              ),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    '→ Withdrawn (Operating):',
-                                    style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                                ),
+                                Text(
+                                  cur.format(q.takeHomeWithdrawn),
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
                                   ),
-                                  Text(
-                                    cur.format(q.takeHomeWithdrawn),
-                                    style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        )),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -799,9 +914,13 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                 icon: const Icon(Icons.copy_all),
                 label: const Text('Copy Full Bank Ledger Summary'),
                 onPressed: () {
-                  Clipboard.setData(ClipboardData(text: summary.toClipboardSummary()));
+                  Clipboard.setData(
+                    ClipboardData(text: summary.toClipboardSummary()),
+                  );
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Bank reserve ledger copied to clipboard!')),
+                    const SnackBar(
+                      content: Text('Bank reserve ledger copied to clipboard!'),
+                    ),
                   );
                 },
               ),
@@ -817,6 +936,10 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
 
   Widget _buildFederalTab() {
     final clientsAsync = ref.watch(activeClientsProvider);
+    final allClients = ref.watch(allClientsProvider).value ?? [];
+    final profile = ref.watch(profileProvider).value;
+    final ourState = UsStates.normalizeCode(profile?.stateProvince) ?? 'WA';
+    final clientMap = {for (final c in allClients) c.id: c};
     final theme = Theme.of(context);
 
     // Live income/tax totals from allInvoicesProvider
@@ -832,6 +955,8 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
             59,
           );
     double totalNet = 0;
+    double inStateNet = 0;
+    double outOfStateNet = 0;
     double totalTax = 0;
     double totalPaid = 0;
     for (final inv in allInvoices) {
@@ -847,7 +972,17 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
       if (_selectedClientId != null && inv.clientId != _selectedClientId) {
         continue;
       }
+      final client = clientMap[inv.clientId];
+      final isOutOfState = UsStates.isOutOfState(
+        client?.stateProvince,
+        businessState: ourState,
+      );
       totalNet += inv.subtotal;
+      if (isOutOfState) {
+        outOfStateNet += inv.subtotal;
+      } else {
+        inStateNet += inv.subtotal;
+      }
       totalTax += inv.taxAmount;
       totalPaid += inv.total;
     }
@@ -897,12 +1032,17 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                             value: null,
                             child: Text('All Clients'),
                           ),
-                          ...clients.map(
-                            (c) => DropdownMenuItem(
+                          ...clients.map((c) {
+                            final code = UsStates.normalizeCode(
+                              c.stateProvince,
+                            );
+                            return DropdownMenuItem(
                               value: c.id,
-                              child: Text(c.name),
-                            ),
-                          ),
+                              child: Text(
+                                code != null ? '${c.name} ($code)' : c.name,
+                              ),
+                            );
+                          }),
                         ],
                         onChanged: (val) =>
                             setState(() => _selectedClientId = val),
@@ -951,6 +1091,18 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                 ),
                 const SizedBox(height: 12),
                 _SummaryRow('Net (pre-tax)', cur.format(totalNet), theme),
+                if (outOfStateNet > 0) ...[
+                  _SummaryRow(
+                    '  • In-State ($ourState) Net',
+                    cur.format(inStateNet),
+                    theme,
+                  ),
+                  _SummaryRow(
+                    '  • Out-of-State Net (Excluded from $ourState tax)',
+                    cur.format(outOfStateNet),
+                    theme,
+                  ),
+                ],
                 _SummaryRow('Tax collected', cur.format(totalTax), theme),
                 const Divider(height: 16),
                 _SummaryRow(
@@ -963,11 +1115,14 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                 () {
                   final seBase = totalNet * 0.9235;
                   final seTax = seBase * _seRate;
-                  final fedBase = (totalNet - seTax / 2).clamp(0.0, double.infinity);
+                  final fedBase = (totalNet - seTax / 2).clamp(
+                    0.0,
+                    double.infinity,
+                  );
                   final fedTax = fedBase * _federalRate;
                   final totalEstTax = seTax + fedTax;
                   final bankReserve = totalTax + totalEstTax;
-                  
+
                   return Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
@@ -1001,7 +1156,8 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                               Text(
                                 'Sales tax: ${cur.format(totalTax)}\nEst. income tax: ${cur.format(totalEstTax)}',
                                 style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.onPrimaryContainer.withAlpha(200),
+                                  color: theme.colorScheme.onPrimaryContainer
+                                      .withAlpha(200),
                                   fontSize: 11,
                                   height: 1.3,
                                 ),
@@ -1599,7 +1755,8 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
               ),
             ],
             selected: {_useIrsPaymentPeriods},
-            onSelectionChanged: (val) => setState(() => _useIrsPaymentPeriods = val.first),
+            onSelectionChanged: (val) =>
+                setState(() => _useIrsPaymentPeriods = val.first),
           ),
         ),
         ...quarters.map((q) {
@@ -2097,7 +2254,6 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
@@ -2915,7 +3071,13 @@ class _SummaryRow extends StatelessWidget {
   final bool bold;
   final Color? color;
 
-  const _SummaryRow(this.label, this.value, this.theme, {this.bold = false, this.color});
+  const _SummaryRow(
+    this.label,
+    this.value,
+    this.theme, {
+    this.bold = false,
+    this.color,
+  });
 
   @override
   Widget build(BuildContext context) {

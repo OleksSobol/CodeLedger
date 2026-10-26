@@ -200,12 +200,16 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
     }).toList()..sort((a, b) => a.issueDate.compareTo(b.issueDate));
 
     final names = <String, String>{};
+    final states = <String, String?>{};
     for (final inv in filtered) {
       if (!names.containsKey(inv.clientId)) {
         try {
-          names[inv.clientId] = (await clientDao.getClient(inv.clientId)).name;
+          final c = await clientDao.getClient(inv.clientId);
+          names[inv.clientId] = c.name;
+          states[inv.clientId] = c.stateProvince;
         } catch (_) {
           names[inv.clientId] = 'Unknown Client';
+          states[inv.clientId] = null;
         }
       }
     }
@@ -216,8 +220,11 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
       endDate: _dateRange!.end,
       rows: filtered
           .map(
-            (inv) =>
-                TaxReportRow(invoice: inv, clientName: names[inv.clientId]!),
+            (inv) => TaxReportRow(
+              invoice: inv,
+              clientName: names[inv.clientId]!,
+              clientState: states[inv.clientId],
+            ),
           )
           .toList(),
       clientFilterName: _selectedClientId != null

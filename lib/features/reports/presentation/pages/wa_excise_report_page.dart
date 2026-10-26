@@ -5,9 +5,12 @@ import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
+import '../../../../core/constants/us_states.dart';
 import '../../../../core/providers/repository_providers.dart';
 import '../../../../core/providers/theme_provider.dart';
+import '../../../clients/presentation/providers/client_providers.dart';
 import '../../../invoices/presentation/providers/invoice_providers.dart';
+import '../../../profile/presentation/providers/profile_provider.dart';
 
 // ── Submission model ───────────────────────────────────────────────────────────
 
@@ -71,6 +74,22 @@ class _WaSubmission {
   );
 }
 
+class _QuarterInvoiceItem {
+  final String invoiceNumber;
+  final String clientName;
+  final String? clientState;
+  final bool isOutOfState;
+  final double subtotal;
+
+  const _QuarterInvoiceItem({
+    required this.invoiceNumber,
+    required this.clientName,
+    required this.clientState,
+    required this.isOutOfState,
+    required this.subtotal,
+  });
+}
+
 // ── Quarter helpers ────────────────────────────────────────────────────────────
 
 int _quarterOf(DateTime d) => ((d.month - 1) ~/ 3) + 1;
@@ -99,7 +118,11 @@ const _kStateSalesRate = 'wa_state_sales_rate';
 const _kLocalCode = 'wa_local_location_code';
 const _kLocalName = 'wa_local_location_name';
 const _kLocalRate = 'wa_local_tax_rate';
+const _kDeductBo = 'wa_deduct_bo';
+const _kAutoSbc = 'wa_auto_sbc';
 const _kSubmissions = 'wa_submissions';
+
+double _round2(double v) => (v * 100).roundToDouble() / 100;
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 
@@ -133,8 +156,13 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
   final _localRateCtrl = TextEditingController(text: '0.000000');
 
   bool _showRateSettings = false;
+  bool _deductFromBo = false;
+  bool _autoSmallBusinessCredit = true;
   bool _loading = false;
   double _autoGross = 0;
+  double _autoDeductions = 0;
+  String _ourState = 'WA';
+  List<_QuarterInvoiceItem> _quarterItems = [];
   List<_WaSubmission> _submissions = [];
 
   // ── Computed values ──────────────────────────────────────────────────────────
@@ -142,15 +170,18 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
   double get _gross => double.tryParse(_grossCtrl.text) ?? 0;
   double get _deductions => double.tryParse(_deductionsCtrl.text) ?? 0;
   double get _taxable => (_gross - _deductions).clamp(0, double.infinity);
+  double get _boDeductions => _deductFromBo ? _deductions : 0.0;
+  double get _boTaxable => (_gross - _boDeductions).clamp(0, double.infinity);
   double get _boRate => double.tryParse(_boRateCtrl.text) ?? 0;
   double get _stateSalesRate => double.tryParse(_stateSalesRateCtrl.text) ?? 0;
   double get _localRate => double.tryParse(_localRateCtrl.text) ?? 0;
-  double get _boTax => _taxable * _boRate;
-  double get _stateSalesTax => _taxable * _stateSalesRate;
-  double get _localTax => _taxable * _localRate;
-  double get _totalTax => _boTax + _stateSalesTax + _localTax;
+  double get _boTax => _round2(_boTaxable * _boRate);
+  double get _stateSalesTax => _round2(_taxable * _stateSalesRate);
+  double get _localTax => _round2(_taxable * _localRate);
+  double get _totalTax => _round2(_boTax + _stateSalesTax + _localTax);
   double get _credits => double.tryParse(_creditsCtrl.text) ?? 0;
-  double get _totalDue => (_totalTax - _credits).clamp(0, double.infinity);
+  double get _totalDue =>
+      _round2((_totalTax - _credits).clamp(0, double.infinity));
 
   // ── Lifecycle ────────────────────────────────────────────────────────────────
 
@@ -190,12 +221,14 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
     final localCode = await dao.getValue(_kLocalCode);
     final localName = await dao.getValue(_kLocalName);
     final localRate = await dao.getValue(_kLocalRate);
+    final deductBo = await dao.getValue(_kDeductBo);
+    final autoSbc = await dao.getValue(_kAutoSbc);
+
+    final profile = await ref.read(userProfileRepositoryProvider).getProfile();
+    final ourState = UsStates.normalizeCode(profile.stateProvince) ?? 'WA';
 
     // Fall back to profile taxId for TRA
     if ((tra == null || tra.isEmpty)) {
-      final profile = await ref
-          .read(userProfileRepositoryProvider)
-          .getProfile();
       if (profile.taxId != null && mounted) {
         _traCtrl.text = profile.taxId!;
       }
@@ -203,12 +236,15 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
 
     if (mounted) {
       setState(() {
+        _ourState = ourState;
         if (tra != null) _traCtrl.text = tra;
         if (boRate != null) _boRateCtrl.text = boRate;
         if (stateRate != null) _stateSalesRateCtrl.text = stateRate;
         if (localCode != null) _localCodeCtrl.text = localCode;
         if (localName != null) _localNameCtrl.text = localName;
         if (localRate != null) _localRateCtrl.text = localRate;
+        if (deductBo != null) _deductFromBo = deductBo == 'true';
+        if (autoSbc != null) _autoSmallBusinessCredit = autoSbc == 'true';
       });
     }
     _refreshGross();
@@ -222,6 +258,8 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
     await dao.setValue(_kLocalCode, _localCodeCtrl.text.trim());
     await dao.setValue(_kLocalName, _localNameCtrl.text.trim());
     await dao.setValue(_kLocalRate, _localRateCtrl.text.trim());
+    await dao.setValue(_kDeductBo, _deductFromBo.toString());
+    await dao.setValue(_kAutoSbc, _autoSmallBusinessCredit.toString());
   }
 
   Future<void> _loadSubmissions() async {
@@ -249,21 +287,63 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
     );
   }
 
+  void _syncSbcCredit() {
+    if (_autoSmallBusinessCredit) {
+      _creditsCtrl.text = _boTax.toStringAsFixed(2);
+    }
+  }
+
   void _refreshGross() {
     final invoices = ref.read(allInvoicesProvider).value ?? [];
+    final clients = ref.read(allClientsProvider).value ?? [];
+    final profile = ref.read(profileProvider).value;
+    final ourState =
+        UsStates.normalizeCode(profile?.stateProvince) ?? _ourState;
+    final clientMap = {for (final c in clients) c.id: c};
+
     final range = _quarterRange(_year, _quarter);
     double total = 0;
+    double outOfStateTotal = 0;
+    final items = <_QuarterInvoiceItem>[];
+
     for (final inv in invoices) {
       if (inv.status != 'paid' && inv.status != 'archived') continue;
       final reportDate = inv.paidDate ?? inv.issueDate;
       if (reportDate.isBefore(range.start)) continue;
       if (!reportDate.isBefore(range.end)) continue;
+
+      final client = clientMap[inv.clientId];
+      final clientState = UsStates.normalizeCode(client?.stateProvince);
+      final isOutOfState = UsStates.isOutOfState(
+        clientState,
+        businessState: ourState,
+      );
+
       total += inv.subtotal;
+      if (isOutOfState) {
+        outOfStateTotal += inv.subtotal;
+      }
+
+      items.add(
+        _QuarterInvoiceItem(
+          invoiceNumber: inv.invoiceNumber,
+          clientName: client?.name ?? 'Unknown Client',
+          clientState: clientState,
+          isOutOfState: isOutOfState,
+          subtotal: inv.subtotal,
+        ),
+      );
     }
+
     if (mounted) {
       setState(() {
+        _ourState = ourState;
         _autoGross = total;
+        _autoDeductions = outOfStateTotal;
+        _quarterItems = items;
         _grossCtrl.text = total.toStringAsFixed(2);
+        _deductionsCtrl.text = outOfStateTotal.toStringAsFixed(2);
+        _syncSbcCredit();
       });
     }
   }
@@ -293,13 +373,15 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
     buf.writeln('TAX,2,0,${_gross.toStringAsFixed(2)}');
     // State Retail Sales (line 1)
     buf.writeln('TAX,1,0,${_gross.toStringAsFixed(2)}');
-    // Local sales tax (line 45)
+    // Local sales tax (line 45) — uses taxable in-state sales
     if (hasLocal) {
       buf.writeln('TAX,45,$localCode,${_taxable.toStringAsFixed(2)}');
     }
     // Deductions - Interstate/Foreign Sales (deduction code 01)
     if (hasDeductions) {
-      buf.writeln('DED,2,01,${_deductions.toStringAsFixed(2)}');
+      if (_deductFromBo) {
+        buf.writeln('DED,2,01,${_deductions.toStringAsFixed(2)}');
+      }
       buf.writeln('DED,1,01,${_deductions.toStringAsFixed(2)}');
     }
     return buf.toString();
@@ -429,8 +511,10 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
 
   @override
   Widget build(BuildContext context) {
-    // Keep gross in sync when invoices load
+    // Keep gross & out-of-state deductions in sync when invoices/clients load
     ref.listen(allInvoicesProvider, (_, _) => _refreshGross());
+    ref.listen(allClientsProvider, (_, _) => _refreshGross());
+    ref.listen(profileProvider, (_, _) => _refreshGross());
 
     return Scaffold(
       appBar: AppBar(
@@ -457,6 +541,12 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
     final isSubmitted = _submissions.any(
       (s) => s.period == _periodCode(_year, _quarter),
     );
+    final outOfStateItems = _quarterItems
+        .where((i) => i.isOutOfState)
+        .toList();
+    final missingStateItems = _quarterItems
+        .where((i) => i.clientState == null)
+        .toList();
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -557,6 +647,111 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
         ),
         const SizedBox(height: 12),
 
+        // ── State Breakdown Banner ─────────────────────────────────
+        if (_quarterItems.isNotEmpty) ...[
+          Card(
+            color: theme.colorScheme.surfaceContainerLow,
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.public_outlined,
+                        size: 18,
+                        color: theme.colorScheme.primary,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'State Check (${_quarterItems.length} paid/archived invoices in Q$_quarter)',
+                          style: theme.textTheme.labelLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  _TaxRow(
+                    'In-State ($_ourState) Taxable Sales',
+                    cur.format(_autoGross - _autoDeductions),
+                    bold: true,
+                  ),
+                  _TaxRow(
+                    'Out-of-State Excluded (Interstate/Foreign)',
+                    cur.format(_autoDeductions),
+                    color: _autoDeductions > 0
+                        ? theme.colorScheme.tertiary
+                        : null,
+                  ),
+                  if (outOfStateItems.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    ...outOfStateItems.map(
+                      (item) => Padding(
+                        padding: const EdgeInsets.only(left: 8, top: 2),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                '• ${item.invoiceNumber} — ${item.clientName} (${item.clientState})',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            Text(
+                              cur.format(item.subtotal),
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                  if (missingStateItems.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.errorContainer,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.warning_amber_rounded,
+                            size: 16,
+                            color: theme.colorScheme.onErrorContainer,
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              '${missingStateItems.length} invoice(s) belong to client(s) with no state set '
+                              '(${missingStateItems.map((e) => e.clientName).toSet().join(', ')}). '
+                              'Edit client profile to set their state.',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onErrorContainer,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+
         // ── Gross & Deductions ────────────────────────────────────
         Card(
           child: Padding(
@@ -571,7 +766,7 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
                   decoration: InputDecoration(
                     labelText: 'Gross Sales',
                     helperText: _autoGross > 0
-                        ? 'Auto-filled from ${cur.format(_autoGross)} paid invoices'
+                        ? 'Auto-filled from ${cur.format(_autoGross)} total paid invoices'
                         : null,
                     border: const OutlineInputBorder(),
                     prefixText: '\$ ',
@@ -579,35 +774,73 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
-                  onChanged: (_) => setState(() {}),
+                  onChanged: (_) => setState(_syncSbcCredit),
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _deductionsCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Deductions (Interstate/Foreign Sales)',
-                    helperText:
-                        'Revenue from clients outside WA that qualifies for apportionment',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText:
+                        'Deductions (Interstate & Foreign Sales / Apportionment)',
+                    helperText: _autoDeductions > 0
+                        ? 'Auto-excluded ${cur.format(_autoDeductions)} from out-of-state clients'
+                        : 'Revenue from clients outside $_ourState excluded from WA sales tax',
+                    border: const OutlineInputBorder(),
                     prefixText: '\$ ',
                   ),
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
-                  onChanged: (_) => setState(() {}),
+                  onChanged: (_) => setState(_syncSbcCredit),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
+                CheckboxListTile(
+                  value: _deductFromBo,
+                  onChanged: (v) {
+                    setState(() {
+                      _deductFromBo = v ?? false;
+                      _syncSbcCredit();
+                    });
+                    _saveSettings();
+                  },
+                  title: const Text(
+                    'Also deduct out-of-state sales from B&O (Retailing)',
+                  ),
+                  subtitle: const Text(
+                    'Leave unchecked when claiming Small Business Credit on gross B&O',
+                  ),
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                ),
+                const SizedBox(height: 8),
                 TextFormField(
                   controller: _creditsCtrl,
                   decoration: const InputDecoration(
-                    labelText: 'Credits (e.g. Small Business Credit)',
+                    labelText: 'Credits (Small Business Credit)',
                     border: OutlineInputBorder(),
                     prefixText: '\$ ',
                   ),
                   keyboardType: const TextInputType.numberWithOptions(
                     decimal: true,
                   ),
-                  onChanged: (_) => setState(() {}),
+                  onChanged: (_) => setState(() {
+                    _autoSmallBusinessCredit = false;
+                  }),
+                ),
+                CheckboxListTile(
+                  value: _autoSmallBusinessCredit,
+                  onChanged: (v) {
+                    setState(() {
+                      _autoSmallBusinessCredit = v ?? false;
+                      _syncSbcCredit();
+                    });
+                    _saveSettings();
+                  },
+                  title: const Text(
+                    'Auto-apply Small Business Credit (offsets B&O tax)',
+                  ),
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
                 ),
               ],
             ),
@@ -650,7 +883,7 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
                                   const TextInputType.numberWithOptions(
                                     decimal: true,
                                   ),
-                              onChanged: (_) => setState(() {}),
+                              onChanged: (_) => setState(_syncSbcCredit),
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -730,7 +963,7 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Return Summary',
+                  'Filing Category Summary',
                   style: theme.textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -739,9 +972,13 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
                 _SummarySection(
                   label: 'Business & Occupation - Retailing',
                   rows: [
-                    _TaxRow('Gross', cur.format(_gross)),
-                    _TaxRow('Deductions', '- ${cur.format(_deductions)}'),
-                    _TaxRow('Taxable', cur.format(_taxable), bold: true),
+                    _TaxRow('Gross Amount', cur.format(_gross)),
+                    _TaxRow('Deductions', cur.format(_boDeductions)),
+                    _TaxRow(
+                      'Taxable Amount',
+                      cur.format(_boTaxable),
+                      bold: true,
+                    ),
                     _TaxRow('Rate', pct.format(_boRate)),
                     _TaxRow(
                       'B&O Tax Due',
@@ -751,29 +988,20 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
                     ),
                   ],
                 ),
-                const Divider(height: 24),
-                _SummarySection(
-                  label: 'State Sales and Use - Retail Sales',
-                  rows: [
-                    _TaxRow('Gross', cur.format(_gross)),
-                    _TaxRow('Deductions', '- ${cur.format(_deductions)}'),
-                    _TaxRow('Taxable', cur.format(_taxable), bold: true),
-                    _TaxRow('Rate', pct.format(_stateSalesRate)),
-                    _TaxRow(
-                      'State Sales Tax Due',
-                      cur.format(_stateSalesTax),
-                      bold: true,
-                      color: theme.colorScheme.primary,
-                    ),
-                  ],
-                ),
                 if (_localRate > 0 && _localCodeCtrl.text.isNotEmpty) ...[
                   const Divider(height: 24),
                   _SummarySection(
                     label:
-                        'Local Sales Tax - ${_localNameCtrl.text.isNotEmpty ? _localNameCtrl.text : _localCodeCtrl.text}',
+                        'Local Taxes - Local City and/or County Sales Tax '
+                        '(${_localNameCtrl.text.isNotEmpty ? _localNameCtrl.text : _localCodeCtrl.text})',
                     rows: [
-                      _TaxRow('Taxable', cur.format(_taxable), bold: true),
+                      _TaxRow('Gross Amount', cur.format(_taxable)),
+                      _TaxRow('Deductions', cur.format(0)),
+                      _TaxRow(
+                        'Taxable Amount',
+                        cur.format(_taxable),
+                        bold: true,
+                      ),
                       _TaxRow('Rate', pct.format(_localRate)),
                       _TaxRow(
                         'Local Tax Due',
@@ -785,10 +1013,29 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
                   ),
                 ],
                 const Divider(height: 24),
+                _SummarySection(
+                  label: 'State Sales and Use - Retail Sales',
+                  rows: [
+                    _TaxRow('Gross Amount', cur.format(_gross)),
+                    _TaxRow(
+                      'Deductions (Interstate & Foreign Sales)',
+                      cur.format(_deductions),
+                    ),
+                    _TaxRow('Taxable Amount', cur.format(_taxable), bold: true),
+                    _TaxRow('Rate', pct.format(_stateSalesRate)),
+                    _TaxRow(
+                      'State Sales Tax Due',
+                      cur.format(_stateSalesTax),
+                      bold: true,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ],
+                ),
+                const Divider(height: 24),
                 _TaxRow('Total Tax', cur.format(_totalTax), bold: true),
                 if (_credits > 0)
                   _TaxRow(
-                    'Credits',
+                    'Less Credits (Small Business Credit)',
                     '- ${cur.format(_credits)}',
                     color: Colors.green,
                   ),
@@ -806,7 +1053,7 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
-                        'Total Amount Owed',
+                        'Total Tax Due',
                         style: theme.textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.bold,
                           color: theme.colorScheme.onPrimaryContainer,
@@ -855,7 +1102,7 @@ class _WaExciseReportPageState extends ConsumerState<WaExciseReportPage>
         const SizedBox(height: 8),
         Text(
           'CSV uses WA DOR data upload format: ACCOUNT + TAX lines (B&O Retailing line 2, '
-          'State Sales line 1, Local line 45) + DED lines for apportionment (code 01). '
+          'State Sales line 1, Local line 45) + DED lines for Interstate/Foreign Sales (code 01). '
           'Upload at MyDOR to Excise Tax Return to Upload a file.',
           style: theme.textTheme.bodySmall?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,

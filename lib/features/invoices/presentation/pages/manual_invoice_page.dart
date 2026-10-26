@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import '../../../../core/constants/us_states.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../core/database/daos/invoice_dao.dart';
 import '../../../../core/providers/database_provider.dart';
@@ -32,6 +33,8 @@ class _ManualInvoicePageState extends ConsumerState<ManualInvoicePage> {
   DateTime _dueDate = DateTime.now().add(const Duration(days: 30));
   String _status = 'paid';
   String _currency = 'USD';
+  double _defaultTaxRate = 0.0;
+  String? _businessState = 'WA';
   bool _isSaving = false;
 
   static const _statuses = ['draft', 'sent', 'paid', 'overdue', 'cancelled'];
@@ -50,6 +53,8 @@ class _ManualInvoicePageState extends ConsumerState<ManualInvoicePage> {
     if (!mounted) return;
     setState(() {
       _invoiceNumberCtrl.text = invoiceNumber;
+      _defaultTaxRate = profile.defaultTaxRate;
+      _businessState = profile.stateProvince ?? 'WA';
       _taxRateCtrl.text = profile.defaultTaxRate.toStringAsFixed(2);
       _currency = profile.defaultCurrency;
     });
@@ -69,6 +74,27 @@ class _ManualInvoicePageState extends ConsumerState<ManualInvoicePage> {
   double get _taxRate => double.tryParse(_taxRateCtrl.text) ?? 0.0;
   double get _taxAmount => _subtotal * (_taxRate / 100.0);
   double get _total => _subtotal + _taxAmount;
+
+  void _onClientSelected(String? clientId, List<Client> clients) {
+    setState(() {
+      _selectedClientId = clientId;
+      if (clientId != null) {
+        final client = clients.where((c) => c.id == clientId).firstOrNull;
+        if (client != null) {
+          final isOutOfState = UsStates.isOutOfState(
+            client.stateProvince,
+            businessState: _businessState,
+          );
+          final resolvedRate =
+              client.taxRate ?? (isOutOfState ? 0.0 : _defaultTaxRate);
+          _taxRateCtrl.text = resolvedRate.toStringAsFixed(2);
+          if (_currencies.contains(client.currency)) {
+            _currency = client.currency;
+          }
+        }
+      }
+    });
+  }
 
   Future<void> _pickDate(bool isIssue) async {
     final initial = isIssue ? _issueDate : _dueDate;
@@ -167,6 +193,16 @@ class _ManualInvoicePageState extends ConsumerState<ManualInvoicePage> {
     final dateFmt = DateFormat('MMM d, yyyy');
     final bottomInset = MediaQuery.of(context).padding.bottom;
 
+    final clientsList = clientsAsync.whenOrNull(data: (c) => c) ?? const [];
+    final selectedClient = _selectedClientId == null
+        ? null
+        : clientsList.where((c) => c.id == _selectedClientId).firstOrNull;
+    final clientState = UsStates.normalizeCode(selectedClient?.stateProvince);
+    final isOutOfState = UsStates.isOutOfState(
+      clientState,
+      businessState: _businessState,
+    );
+
     return Scaffold(
       appBar: AppBar(title: const Text('Manual Invoice')),
       body: Form(
@@ -185,17 +221,25 @@ class _ManualInvoicePageState extends ConsumerState<ManualInvoicePage> {
               error: (e, _) => Text('Error: $e'),
               data: (clients) => DropdownButtonFormField<String>(
                 initialValue: _selectedClientId,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Client *',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.people_outline),
+                  border: const OutlineInputBorder(),
+                  prefixIcon: const Icon(Icons.people_outline),
+                  helperText: selectedClient != null
+                      ? (clientState != null
+                            ? 'Client state: ${UsStates.displayLabel(clientState)} '
+                                  '${isOutOfState ? '(Out-of-state — 0% tax)' : '(In-state)'}'
+                            : 'No state set on client profile')
+                      : null,
                 ),
-                items: clients
-                    .map(
-                      (c) => DropdownMenuItem(value: c.id, child: Text(c.name)),
-                    )
-                    .toList(),
-                onChanged: (v) => setState(() => _selectedClientId = v),
+                items: clients.map((c) {
+                  final code = UsStates.normalizeCode(c.stateProvince);
+                  return DropdownMenuItem(
+                    value: c.id,
+                    child: Text(code != null ? '${c.name} ($code)' : c.name),
+                  );
+                }).toList(),
+                onChanged: (v) => _onClientSelected(v, clients),
                 validator: (v) => v == null ? 'Select a client' : null,
               ),
             ),
@@ -319,11 +363,13 @@ class _ManualInvoicePageState extends ConsumerState<ManualInvoicePage> {
             // ── Tax rate ──────────────────────────────────────────────
             TextFormField(
               controller: _taxRateCtrl,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Tax Rate %',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.percent),
-                helperText: '0 = no tax',
+                border: const OutlineInputBorder(),
+                prefixIcon: const Icon(Icons.percent),
+                helperText: isOutOfState
+                    ? '0 = no tax (Out-of-state client: $clientState)'
+                    : '0 = no tax',
               ),
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,

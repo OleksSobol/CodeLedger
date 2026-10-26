@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:drift/drift.dart' hide Column;
 import '../../../../core/database/app_database.dart';
 import '../../../../core/constants/payment_terms.dart';
+import '../../../../core/constants/us_states.dart';
 import '../../../../core/utils/currency_formatter.dart';
 import '../../../../core/providers/repository_providers.dart';
 import '../../../time_tracking/presentation/providers/time_entry_providers.dart';
@@ -27,7 +28,7 @@ class _ClientFormPageState extends ConsumerState<ClientFormPage> {
   late final TextEditingController _addressLine1Ctrl;
   late final TextEditingController _addressLine2Ctrl;
   late final TextEditingController _cityCtrl;
-  late final TextEditingController _stateCtrl;
+  String? _selectedState;
   late final TextEditingController _postalCodeCtrl;
   late final TextEditingController _countryCtrl;
   late final TextEditingController _hourlyRateCtrl;
@@ -51,7 +52,7 @@ class _ClientFormPageState extends ConsumerState<ClientFormPage> {
     _addressLine1Ctrl = TextEditingController(text: c?.addressLine1 ?? '');
     _addressLine2Ctrl = TextEditingController(text: c?.addressLine2 ?? '');
     _cityCtrl = TextEditingController(text: c?.city ?? '');
-    _stateCtrl = TextEditingController(text: c?.stateProvince ?? '');
+    _selectedState = UsStates.normalizeCode(c?.stateProvince);
     _postalCodeCtrl = TextEditingController(text: c?.postalCode ?? '');
     _countryCtrl = TextEditingController(text: c?.country ?? '');
     _hourlyRateCtrl = TextEditingController(
@@ -77,7 +78,6 @@ class _ClientFormPageState extends ConsumerState<ClientFormPage> {
     _addressLine1Ctrl.dispose();
     _addressLine2Ctrl.dispose();
     _cityCtrl.dispose();
-    _stateCtrl.dispose();
     _postalCodeCtrl.dispose();
     _countryCtrl.dispose();
     _hourlyRateCtrl.dispose();
@@ -118,7 +118,7 @@ class _ClientFormPageState extends ConsumerState<ClientFormPage> {
             addressLine1: Value(_trimOrNull(_addressLine1Ctrl.text)),
             addressLine2: Value(_trimOrNull(_addressLine2Ctrl.text)),
             city: Value(_trimOrNull(_cityCtrl.text)),
-            stateProvince: Value(_trimOrNull(_stateCtrl.text)),
+            stateProvince: Value(_selectedState),
             postalCode: Value(_trimOrNull(_postalCodeCtrl.text)),
             country: Value(_trimOrNull(_countryCtrl.text)),
             hourlyRate: Value(hourlyRate),
@@ -179,7 +179,7 @@ class _ClientFormPageState extends ConsumerState<ClientFormPage> {
           addressLine1: _trimOrNull(_addressLine1Ctrl.text),
           addressLine2: _trimOrNull(_addressLine2Ctrl.text),
           city: _trimOrNull(_cityCtrl.text),
-          stateProvince: _trimOrNull(_stateCtrl.text),
+          stateProvince: _selectedState,
           postalCode: _trimOrNull(_postalCodeCtrl.text),
           country: _trimOrNull(_countryCtrl.text),
           hourlyRate: hourlyRate,
@@ -207,6 +207,9 @@ class _ClientFormPageState extends ConsumerState<ClientFormPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isOutOfState =
+        _selectedState != null && UsStates.isOutOfState(_selectedState);
+
     return Scaffold(
       appBar: AppBar(title: Text(_isEditing ? 'Edit Client' : 'Add Client')),
       body: Form(
@@ -261,13 +264,65 @@ class _ClientFormPageState extends ConsumerState<ClientFormPage> {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: TextFormField(
-                    controller: _stateCtrl,
-                    decoration: const InputDecoration(labelText: 'State'),
+                  child: DropdownButtonFormField<String?>(
+                    initialValue: _selectedState != null &&
+                            UsStates.stateMap.containsKey(_selectedState)
+                        ? _selectedState
+                        : null,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'State',
+                    ),
+                    items: [
+                      const DropdownMenuItem<String?>(
+                        value: null,
+                        child: Text('Not set'),
+                      ),
+                      ...UsStates.stateMap.keys.map(
+                        (code) => DropdownMenuItem<String?>(
+                          value: code,
+                          child: Text(
+                            UsStates.displayLabel(code),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
+                    ],
+                    onChanged: (v) {
+                      setState(() {
+                        _selectedState = v;
+                        if (v != null &&
+                            UsStates.isOutOfState(v) &&
+                            _taxRateCtrl.text.trim().isEmpty) {
+                          _taxRateCtrl.text = '0';
+                        }
+                      });
+                    },
                   ),
                 ),
               ],
             ),
+            if (isOutOfState) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(
+                    Icons.info_outline,
+                    size: 16,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Out-of-state client ($_selectedState): WA sales tax will default to 0% on invoices and count toward Interstate/Foreign Sales deductions.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
             const SizedBox(height: 12),
             Row(
               children: [
@@ -316,9 +371,11 @@ class _ClientFormPageState extends ConsumerState<ClientFormPage> {
             const SizedBox(height: 12),
             TextFormField(
               controller: _taxRateCtrl,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'Tax Rate %',
-                hintText: 'Uses default if empty',
+                hintText: isOutOfState
+                    ? '0% (out-of-state client)'
+                    : 'Uses default if empty',
               ),
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,

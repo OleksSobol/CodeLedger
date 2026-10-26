@@ -3,10 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import '../../../../core/constants/us_states.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../core/utils/currency_formatter.dart';
 import '../../../../core/utils/duration_formatter.dart';
 import '../../../clients/presentation/providers/client_providers.dart';
+import '../../../profile/presentation/providers/profile_provider.dart';
 import '../providers/invoice_providers.dart';
 import '../providers/template_providers.dart';
 
@@ -346,8 +348,18 @@ class _ClientTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final uninvoicedAsync = ref.watch(uninvoicedEntriesProvider(client.id));
+    final profile = ref.watch(profileProvider).value;
     final entryCount =
         uninvoicedAsync.whenOrNull(data: (entries) => entries.length) ?? 0;
+
+    final stateCode = UsStates.normalizeCode(client.stateProvince);
+    final isOutOfState = UsStates.isOutOfState(
+      client.stateProvince,
+      businessState: profile?.stateProvince,
+    );
+    final stateInfo = stateCode != null
+        ? ' · $stateCode${isOutOfState ? ' (Out-of-state)' : ''}'
+        : '';
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
@@ -359,8 +371,8 @@ class _ClientTile extends ConsumerWidget {
         title: Text(client.name),
         subtitle: Text(
           entryCount > 0
-              ? '$entryCount uninvoiced entries'
-              : 'No uninvoiced entries',
+              ? '$entryCount uninvoiced entries$stateInfo'
+              : 'No uninvoiced entries$stateInfo',
         ),
         trailing: const Icon(Icons.chevron_right),
         onTap: onTap,
@@ -730,7 +742,23 @@ class _ReviewStep extends ConsumerWidget {
     }
 
     final clientAsync = ref.watch(clientByIdProvider(wizard.clientId!));
-    final clientName = clientAsync.whenOrNull(data: (c) => c.name) ?? '...';
+    final profileAsync = ref.watch(profileProvider);
+    final client = clientAsync.whenOrNull(data: (c) => c);
+    final profile = profileAsync.whenOrNull(data: (p) => p);
+    final clientName = client?.name ?? '...';
+
+    final clientState = UsStates.normalizeCode(client?.stateProvince);
+    final businessState =
+        UsStates.normalizeCode(profile?.stateProvince) ?? 'WA';
+    final isOutOfState = UsStates.isOutOfState(
+      clientState,
+      businessState: businessState,
+    );
+
+    final defaultRate =
+        client?.taxRate ??
+        (isOutOfState ? 0.0 : (profile?.defaultTaxRate ?? 0.0));
+    final subtotal = wizard.subtotal;
 
     final totalMinutes = wizard.totalDurationMinutes;
 
@@ -752,6 +780,13 @@ class _ReviewStep extends ConsumerWidget {
                 ),
                 const SizedBox(height: 12),
                 _SummaryRow(label: 'Client', value: clientName),
+                _SummaryRow(
+                  label: 'Client State',
+                  value: clientState != null
+                      ? '${UsStates.displayLabel(clientState)} '
+                            '${isOutOfState ? '(Out-of-state — 0% $businessState tax)' : '(In-state)'}'
+                      : 'Not set on client profile',
+                ),
                 _SummaryRow(
                   label: 'Time Entries',
                   value: '${wizard.selectedEntries.length}',
@@ -836,15 +871,27 @@ class _ReviewStep extends ConsumerWidget {
         const SizedBox(height: 16),
 
         // Tax override
-        TextFormField(
-          controller: taxCtrl,
-          decoration: const InputDecoration(
-            labelText: 'Tax Rate Override (%)',
-            hintText: 'Leave blank for default',
-            border: OutlineInputBorder(),
-            suffixText: '%',
-          ),
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        ValueListenableBuilder<TextEditingValue>(
+          valueListenable: taxCtrl,
+          builder: (context, _, _) {
+            return TextFormField(
+              controller: taxCtrl,
+              decoration: InputDecoration(
+                labelText: 'Tax Rate Override (%)',
+                hintText:
+                    'Default: ${defaultRate.toStringAsFixed(2)}% '
+                    '${isOutOfState ? '(Out-of-state)' : ''}',
+                helperText: isOutOfState
+                    ? 'Out-of-state client ($clientState) defaults to 0% $businessState sales tax'
+                    : null,
+                border: const OutlineInputBorder(),
+                suffixText: '%',
+              ),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+            );
+          },
         ),
         const SizedBox(height: 16),
 
@@ -861,28 +908,68 @@ class _ReviewStep extends ConsumerWidget {
         const SizedBox(height: 24),
 
         // Totals
-        Card(
-          color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Subtotal',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+        ValueListenableBuilder<TextEditingValue>(
+          valueListenable: taxCtrl,
+          builder: (context, taxVal, _) {
+            final curOverride = double.tryParse(taxVal.text.trim());
+            final curRate = curOverride ?? defaultRate;
+            final curTax = subtotal * (curRate / 100.0);
+            final curTotal = subtotal + curTax;
+
+            return Card(
+              color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Subtotal', style: theme.textTheme.bodyMedium),
+                        Text(
+                          formatCurrency(subtotal),
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          '${profile?.defaultTaxLabel ?? 'Tax'} '
+                          '(${curRate.toStringAsFixed(2)}%)',
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                        Text(
+                          formatCurrency(curTax),
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Total',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          formatCurrency(curTotal),
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-                Text(
-                  formatCurrency(wizard.subtotal),
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         ),
         const SizedBox(height: 24),
 

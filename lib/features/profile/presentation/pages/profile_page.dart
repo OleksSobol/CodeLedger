@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../core/constants/payment_terms.dart';
+import '../../../../core/constants/us_states.dart';
 import '../../../../core/providers/theme_provider.dart';
 import '../../../invoices/presentation/providers/template_providers.dart';
 import '../providers/profile_provider.dart';
@@ -303,7 +304,7 @@ class _BusinessInfoTileState extends ConsumerState<_BusinessInfoTile> {
   late final TextEditingController _addr1;
   late final TextEditingController _addr2;
   late final TextEditingController _city;
-  late final TextEditingController _state;
+  String? _selectedState;
   late final TextEditingController _postal;
   late final TextEditingController _country;
 
@@ -318,7 +319,7 @@ class _BusinessInfoTileState extends ConsumerState<_BusinessInfoTile> {
     _addr1 = TextEditingController(text: p.addressLine1 ?? '');
     _addr2 = TextEditingController(text: p.addressLine2 ?? '');
     _city = TextEditingController(text: p.city ?? '');
-    _state = TextEditingController(text: p.stateProvince ?? '');
+    _selectedState = UsStates.normalizeCode(p.stateProvince);
     _postal = TextEditingController(text: p.postalCode ?? '');
     _country = TextEditingController(text: p.country ?? '');
   }
@@ -333,7 +334,6 @@ class _BusinessInfoTileState extends ConsumerState<_BusinessInfoTile> {
       _addr1,
       _addr2,
       _city,
-      _state,
       _postal,
       _country,
     ]) {
@@ -358,7 +358,7 @@ class _BusinessInfoTileState extends ConsumerState<_BusinessInfoTile> {
           addressLine1: _t(_addr1),
           addressLine2: _t(_addr2),
           city: _t(_city),
-          stateProvince: _t(_state),
+          stateProvince: _selectedState,
           postalCode: _t(_postal),
           country: _t(_country),
         );
@@ -461,12 +461,32 @@ class _BusinessInfoTileState extends ConsumerState<_BusinessInfoTile> {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: TextFormField(
-                controller: _state,
+              child: DropdownButtonFormField<String?>(
+                initialValue: _selectedState != null &&
+                        UsStates.stateMap.containsKey(_selectedState)
+                    ? _selectedState
+                    : null,
+                isExpanded: true,
                 decoration: const InputDecoration(
                   labelText: 'State',
                   border: OutlineInputBorder(),
                 ),
+                items: [
+                  const DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text('Not set'),
+                  ),
+                  ...UsStates.stateMap.keys.map(
+                    (code) => DropdownMenuItem<String?>(
+                      value: code,
+                      child: Text(
+                        UsStates.displayLabel(code),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                ],
+                onChanged: (v) => setState(() => _selectedState = v),
               ),
             ),
           ],

@@ -16,6 +16,7 @@ class TaxReportTemplate {
     final headers = [
       'Paid Date',
       'Client',
+      'State',
       'Invoice #',
       'Net Amount',
       if (data.includeTax) 'Tax',
@@ -36,6 +37,7 @@ class TaxReportTemplate {
       rows.add([
         _fmtDate(inv.paidDate ?? inv.issueDate),
         row.clientName,
+        row.normalizedState,
         inv.invoiceNumber,
         formatCurrency(inv.subtotal, currency: inv.currency),
         if (data.includeTax) taxCell,
@@ -55,6 +57,7 @@ class TaxReportTemplate {
       'TOTALS',
       '',
       '',
+      '',
       formatCurrency(data.totalSubtotal, currency: data.currency),
       if (data.includeTax)
         formatCurrency(data.totalTax, currency: data.currency),
@@ -67,16 +70,17 @@ class TaxReportTemplate {
 
     final columnWidths = {
       0: const pw.FlexColumnWidth(1.0), // Date
-      1: const pw.FlexColumnWidth(2.2), // Client
-      2: const pw.FlexColumnWidth(1.4), // Invoice #
-      3: const pw.FlexColumnWidth(1.1), // Net Amount
-      if (data.includeTax) 4: const pw.FlexColumnWidth(1.3), // Tax
-      if (data.includeTax) 5: const pw.FlexColumnWidth(1.1), // Total Paid
-      if (data.includeTax) 6: const pw.FlexColumnWidth(1.5), // Notes
-      if (data.includeTax) 7: const pw.FlexColumnWidth(0.6), // Paid
-      if (!data.includeTax) 4: const pw.FlexColumnWidth(1.1), // Total Paid
-      if (!data.includeTax) 5: const pw.FlexColumnWidth(1.8), // Notes
-      if (!data.includeTax) 6: const pw.FlexColumnWidth(0.6), // Paid
+      1: const pw.FlexColumnWidth(2.0), // Client
+      2: const pw.FlexColumnWidth(0.7), // State
+      3: const pw.FlexColumnWidth(1.3), // Invoice #
+      4: const pw.FlexColumnWidth(1.1), // Net Amount
+      if (data.includeTax) 5: const pw.FlexColumnWidth(1.3), // Tax
+      if (data.includeTax) 6: const pw.FlexColumnWidth(1.1), // Total Paid
+      if (data.includeTax) 7: const pw.FlexColumnWidth(1.4), // Notes
+      if (data.includeTax) 8: const pw.FlexColumnWidth(0.6), // Paid
+      if (!data.includeTax) 5: const pw.FlexColumnWidth(1.1), // Total Paid
+      if (!data.includeTax) 6: const pw.FlexColumnWidth(1.7), // Notes
+      if (!data.includeTax) 7: const pw.FlexColumnWidth(0.6), // Paid
     };
 
     doc.addPage(
@@ -125,6 +129,82 @@ class TaxReportTemplate {
               return const pw.BoxDecoration();
             },
           ),
+          if (data.hasOutOfState) ...[
+            pw.SizedBox(height: 12),
+            pw.Container(
+              padding: const pw.EdgeInsets.all(12),
+              decoration: const pw.BoxDecoration(color: PdfColors.grey100),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    'State Apportionment Summary (${data.businessState})',
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      fontSize: 10,
+                    ),
+                  ),
+                  pw.SizedBox(height: 6),
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text(
+                        'In-State (${data.businessState}) Taxable Sales',
+                        style: const pw.TextStyle(fontSize: 9),
+                      ),
+                      pw.Text(
+                        formatCurrency(
+                          data.inStateSubtotal,
+                          currency: data.currency,
+                        ),
+                        style: const pw.TextStyle(fontSize: 9),
+                      ),
+                    ],
+                  ),
+                  pw.SizedBox(height: 2),
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text(
+                        'Out-of-State Sales (Interstate/Foreign Deduction)',
+                        style: const pw.TextStyle(fontSize: 9),
+                      ),
+                      pw.Text(
+                        formatCurrency(
+                          data.outOfStateSubtotal,
+                          currency: data.currency,
+                        ),
+                        style: const pw.TextStyle(fontSize: 9),
+                      ),
+                    ],
+                  ),
+                  pw.Divider(thickness: 0.5, color: PdfColors.grey400),
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text(
+                        'Total Gross Sales',
+                        style: pw.TextStyle(
+                          fontWeight: pw.FontWeight.bold,
+                          fontSize: 9,
+                        ),
+                      ),
+                      pw.Text(
+                        formatCurrency(
+                          data.totalSubtotal,
+                          currency: data.currency,
+                        ),
+                        style: pw.TextStyle(
+                          fontWeight: pw.FontWeight.bold,
+                          fontSize: 9,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
           if (data.bankReserve > 0) ...[
             pw.SizedBox(height: 16),
             pw.Container(
@@ -135,29 +215,65 @@ class TaxReportTemplate {
               child: pw.Column(
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
-                  pw.Text('Bank Reserve Summary', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
+                  pw.Text(
+                    'Bank Reserve Summary',
+                    style: pw.TextStyle(
+                      fontWeight: pw.FontWeight.bold,
+                      fontSize: 10,
+                    ),
+                  ),
                   pw.SizedBox(height: 8),
                   pw.Row(
                     mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                     children: [
-                      pw.Text('Tax Collected (Sales Tax)', style: const pw.TextStyle(fontSize: 9)),
-                      pw.Text(formatCurrency(data.totalTax, currency: data.currency), style: const pw.TextStyle(fontSize: 9)),
+                      pw.Text(
+                        'Tax Collected (Sales Tax)',
+                        style: const pw.TextStyle(fontSize: 9),
+                      ),
+                      pw.Text(
+                        formatCurrency(data.totalTax, currency: data.currency),
+                        style: const pw.TextStyle(fontSize: 9),
+                      ),
                     ],
                   ),
                   pw.SizedBox(height: 2),
                   pw.Row(
                     mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                     children: [
-                      pw.Text('Est. Income & SE Tax on Net Profit', style: const pw.TextStyle(fontSize: 9)),
-                      pw.Text(formatCurrency(data.estimatedIncomeTax, currency: data.currency), style: const pw.TextStyle(fontSize: 9)),
+                      pw.Text(
+                        'Est. Income & SE Tax on Net Profit',
+                        style: const pw.TextStyle(fontSize: 9),
+                      ),
+                      pw.Text(
+                        formatCurrency(
+                          data.estimatedIncomeTax,
+                          currency: data.currency,
+                        ),
+                        style: const pw.TextStyle(fontSize: 9),
+                      ),
                     ],
                   ),
                   pw.Divider(thickness: 0.5, color: PdfColors.grey400),
                   pw.Row(
                     mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                     children: [
-                      pw.Text('Total Bank Reserve (Amount to save)', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
-                      pw.Text(formatCurrency(data.bankReserve, currency: data.currency), style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
+                      pw.Text(
+                        'Total Bank Reserve (Amount to save)',
+                        style: pw.TextStyle(
+                          fontWeight: pw.FontWeight.bold,
+                          fontSize: 9,
+                        ),
+                      ),
+                      pw.Text(
+                        formatCurrency(
+                          data.bankReserve,
+                          currency: data.currency,
+                        ),
+                        style: pw.TextStyle(
+                          fontWeight: pw.FontWeight.bold,
+                          fontSize: 9,
+                        ),
+                      ),
                     ],
                   ),
                 ],

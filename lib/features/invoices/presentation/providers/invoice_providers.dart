@@ -4,6 +4,7 @@ import 'package:drift/drift.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../core/constants/payment_terms.dart';
+import '../../../../core/constants/us_states.dart';
 import '../../../../core/providers/repository_providers.dart';
 import '../../../../core/repositories/invoice_repository.dart';
 import '../../../../core/repositories/user_profile_repository.dart';
@@ -437,8 +438,14 @@ class InvoiceNotifier extends AsyncNotifier<void> {
           client.paymentTermsDaysOverride ?? profile.defaultPaymentTermsDays,
     );
 
+    final isOutOfState = UsStates.isOutOfState(
+      client.stateProvince,
+      businessState: profile.stateProvince,
+    );
     final taxRate =
-        wizard.taxRateOverride ?? client.taxRate ?? profile.defaultTaxRate;
+        wizard.taxRateOverride ??
+        client.taxRate ??
+        (isOutOfState ? 0.0 : profile.defaultTaxRate);
     final taxLabel = profile.defaultTaxLabel;
 
     final invoiceNumber = await _profileDao.getNextInvoiceNumber();
@@ -816,4 +823,3 @@ final invoiceBankSplitProvider =
         total: invoice.total,
       );
     });
-

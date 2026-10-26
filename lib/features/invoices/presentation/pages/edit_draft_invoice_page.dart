@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import '../../../../core/constants/us_states.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../shared/widgets/spacing.dart';
 import '../../../clients/presentation/providers/client_providers.dart';
+import '../../../profile/presentation/providers/profile_provider.dart';
 import '../providers/invoice_providers.dart';
 
 class EditDraftInvoicePage extends ConsumerStatefulWidget {
@@ -66,6 +68,27 @@ class _EditDraftInvoicePageState extends ConsumerState<EditDraftInvoicePage> {
   double get _taxRate => double.tryParse(_taxRateCtrl.text) ?? 0.0;
   double get _taxAmount => _subtotal * (_taxRate / 100.0);
   double get _total => _subtotal + _taxAmount + widget.invoice.lateFeeAmount;
+
+  void _onClientChanged(
+    String clientId,
+    List<Client> clients,
+    UserProfile? profile,
+  ) {
+    setState(() {
+      _selectedClientId = clientId;
+      final client = clients.where((c) => c.id == clientId).firstOrNull;
+      if (client != null) {
+        final isOutOfState = UsStates.isOutOfState(
+          client.stateProvince,
+          businessState: profile?.stateProvince,
+        );
+        final resolvedRate =
+            client.taxRate ??
+            (isOutOfState ? 0.0 : (profile?.defaultTaxRate ?? 0.0));
+        _taxRateCtrl.text = resolvedRate.toStringAsFixed(2);
+      }
+    });
+  }
 
   Future<void> _pickDate(bool isIssue) async {
     final initial = isIssue ? _issueDate : _dueDate;
@@ -131,12 +154,21 @@ class _EditDraftInvoicePageState extends ConsumerState<EditDraftInvoicePage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final clientsAsync = ref.watch(activeClientsProvider);
+    final profile = ref.watch(profileProvider).value;
     final dateFmt = DateFormat('MMM d, yyyy');
     final bottomInset = MediaQuery.of(context).padding.bottom;
 
     // Ensure the current client is in the list even if archived
     final clientList = clientsAsync.whenOrNull(data: (c) => c) ?? const [];
     final clientInList = clientList.any((c) => c.id == _selectedClientId);
+    final selectedClient =
+        clientList.where((c) => c.id == _selectedClientId).firstOrNull ??
+        ref.watch(clientByIdProvider(_selectedClientId)).value;
+    final clientState = UsStates.normalizeCode(selectedClient?.stateProvince);
+    final isOutOfState = UsStates.isOutOfState(
+      clientState,
+      businessState: profile?.stateProvince,
+    );
 
     return Scaffold(
       appBar: AppBar(title: const Text('Edit Draft')),
@@ -157,9 +189,13 @@ class _EditDraftInvoicePageState extends ConsumerState<EditDraftInvoicePage> {
               data: (clients) {
                 // If the current client is not active, add a fallback entry
                 final items = [
-                  ...clients.map(
-                    (c) => DropdownMenuItem(value: c.id, child: Text(c.name)),
-                  ),
+                  ...clients.map((c) {
+                    final code = UsStates.normalizeCode(c.stateProvince);
+                    return DropdownMenuItem(
+                      value: c.id,
+                      child: Text(code != null ? '${c.name} ($code)' : c.name),
+                    );
+                  }),
                   if (!clientInList)
                     DropdownMenuItem(
                       value: _selectedClientId,
@@ -173,13 +209,17 @@ class _EditDraftInvoicePageState extends ConsumerState<EditDraftInvoicePage> {
                 return DropdownButtonFormField<String>(
                   // ignore: deprecated_member_use
                   value: _selectedClientId,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Client *',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.people_outline),
+                    border: const OutlineInputBorder(),
+                    prefixIcon: const Icon(Icons.people_outline),
+                    helperText: clientState != null
+                        ? 'Client state: ${UsStates.displayLabel(clientState)} '
+                              '${isOutOfState ? '(Out-of-state — 0% tax)' : '(In-state)'}'
+                        : 'No state set on client profile',
                   ),
                   items: items,
-                  onChanged: (v) => setState(() => _selectedClientId = v!),
+                  onChanged: (v) => _onClientChanged(v!, clients, profile),
                   validator: (v) => v == null ? 'Select a client' : null,
                 );
               },
@@ -294,11 +334,13 @@ class _EditDraftInvoicePageState extends ConsumerState<EditDraftInvoicePage> {
                 Expanded(
                   child: TextFormField(
                     controller: _taxRateCtrl,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Tax Rate %',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.percent),
-                      helperText: '0 = no tax',
+                      border: const OutlineInputBorder(),
+                      prefixIcon: const Icon(Icons.percent),
+                      helperText: isOutOfState
+                          ? '0 = Out-of-state ($clientState)'
+                          : '0 = no tax',
                     ),
                     keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,

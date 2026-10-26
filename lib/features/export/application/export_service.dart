@@ -120,6 +120,7 @@ class ExportService {
     final headers = [
       'Paid Date',
       'Client',
+      'State',
       'Invoice #',
       'Net Amount',
       if (data.includeTax) 'Tax Label',
@@ -141,6 +142,7 @@ class ExportService {
       csvRows.add([
         fmt.format(inv.paidDate ?? inv.issueDate),
         row.clientName,
+        row.normalizedState,
         inv.invoiceNumber,
         inv.subtotal.toStringAsFixed(2),
         if (data.includeTax) inv.taxLabel,
@@ -153,8 +155,40 @@ class ExportService {
       ]);
     }
 
+    if (data.hasOutOfState) {
+      csvRows.add([
+        'IN-STATE (${data.businessState})',
+        '',
+        data.businessState,
+        '',
+        data.inStateSubtotal.toStringAsFixed(2),
+        if (data.includeTax) '',
+        if (data.includeTax) '',
+        if (data.includeTax) '',
+        '',
+        '',
+        '',
+        '',
+      ]);
+      csvRows.add([
+        'OUT-OF-STATE (EXCLUDED)',
+        '',
+        'Non-${data.businessState}',
+        '',
+        data.outOfStateSubtotal.toStringAsFixed(2),
+        if (data.includeTax) '',
+        if (data.includeTax) '',
+        if (data.includeTax) '',
+        '',
+        '',
+        '',
+        '',
+      ]);
+    }
+
     csvRows.add([
       'TOTALS',
+      '',
       '',
       '',
       data.totalSubtotal.toStringAsFixed(2),

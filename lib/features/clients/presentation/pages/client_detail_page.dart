@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../core/constants/us_states.dart';
 import '../../../../core/utils/currency_formatter.dart';
 import '../../../../core/utils/duration_formatter.dart';
 import '../providers/client_providers.dart';
@@ -26,6 +27,9 @@ class ClientDetailPage extends ConsumerWidget {
       ),
       data: (summary) {
         final client = summary.client;
+        final normalizedState = UsStates.normalizeCode(client.stateProvince);
+        final isOutOfState = UsStates.isOutOfState(client.stateProvince);
+
         return Scaffold(
           appBar: AppBar(
             title: Text(client.name),
@@ -171,7 +175,9 @@ class ClientDetailPage extends ConsumerWidget {
               // Contact info
               if (client.contactName != null ||
                   client.email != null ||
-                  client.phone != null)
+                  client.phone != null ||
+                  client.stateProvince != null ||
+                  client.city != null)
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(16),
@@ -179,7 +185,7 @@ class ClientDetailPage extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Contact',
+                          'Contact & Location',
                           style: Theme.of(context).textTheme.titleSmall,
                         ),
                         const SizedBox(height: 8),
@@ -187,6 +193,14 @@ class ClientDetailPage extends ConsumerWidget {
                           Text(client.contactName!),
                         if (client.email != null) Text(client.email!),
                         if (client.phone != null) Text(client.phone!),
+                        if (normalizedState != null) ...[
+                          const SizedBox(height: 4),
+                          _InfoRow(
+                            'State',
+                            '${UsStates.displayLabel(normalizedState)} '
+                                '${isOutOfState ? '(Out-of-state)' : '(In-state)'}',
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -210,8 +224,14 @@ class ClientDetailPage extends ConsumerWidget {
                             ? '${formatCurrency(client.hourlyRate!, currency: client.currency)}/hr'
                             : 'Using default',
                       ),
-                      if (client.taxRate != null)
-                        _InfoRow('Tax Rate', '${client.taxRate}%'),
+                      _InfoRow(
+                        'Tax Rate',
+                        client.taxRate != null
+                            ? '${client.taxRate}%'
+                            : isOutOfState
+                            ? '0% (Out-of-state default)'
+                            : 'Using profile default',
+                      ),
                       if (client.paymentTermsOverride != null)
                         _InfoRow('Terms', client.paymentTermsOverride!),
                     ],
