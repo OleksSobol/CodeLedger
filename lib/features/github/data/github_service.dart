@@ -9,6 +9,51 @@ class SyncLog {
   SyncLog(this.message, this.level);
 }
 
+class GitHubTicket {
+  final int number;
+  final String title;
+  final String? body;
+  final String state; // 'open' or 'closed'
+  final DateTime? createdAt;
+  final DateTime? closedAt;
+  final DateTime? updatedAt;
+  final String? ticketKey; // e.g. "SOL-56", "DEV-79"
+  final String? associatedBranch;
+
+  GitHubTicket({
+    required this.number,
+    required this.title,
+    this.body,
+    required this.state,
+    this.createdAt,
+    this.closedAt,
+    this.updatedAt,
+    this.ticketKey,
+    this.associatedBranch,
+  });
+
+  /// Best display reference: "SOL-56" if key present, else "Issue-56"
+  String get preferredRef => ticketKey ?? 'Issue-$number';
+}
+
+class UserBranchWork {
+  final String branchName;
+  final String? ticketRef; // e.g. "SOL-56", "DEV-79", "Issue-4095"
+  final String? ticketTitle;
+  final bool isClosed;
+  final List<DateTime> commitTimestamps;
+  final String? source; // 'pr', 'branch', 'ticket', 'commit', 'push'
+
+  UserBranchWork({
+    required this.branchName,
+    this.ticketRef,
+    this.ticketTitle,
+    this.isClosed = false,
+    this.commitTimestamps = const [],
+    this.source,
+  });
+}
+
 class UserPR {
   final int number;
   final String title;
@@ -51,8 +96,10 @@ class GitHubService {
   // In-memory caches to avoid duplicate network calls
   List<UserPushEvent>? _cachedPushEvents;
   final Map<String, List<UserPR>> _cachedPRs = {};
+  final Map<String, List<GitHubTicket>> _cachedTickets = {};
   final Map<String, List<String>> _cachedCommitPulls = {};
   final Map<String, List<String>> _cachedUserBranches = {};
+  final Map<String, List<UserBranchWork>> _cachedWorkUnits = {};
 
   GitHubService({
     required this.pat,
@@ -91,22 +138,50 @@ class GitHubService {
 
   static const _timeout = Duration(seconds: 15);
 
-  /// Extracts a normalized issue reference (e.g. "Issue-4095") from text
-  /// (branch name, PR title, commit message, etc.).
+  /// Extracts ticket keys like "SOL-56", "DEV-79", "GH-39", "PVM-4095".
+  static String? extractTicketKey(String text) {
+    if (text.isEmpty) return null;
+    const ignoredPrefixes = {
+      'HTTP', 'UTF', 'PAGE', 'FEAT', 'FIX', 'BUG', 'TEST', 'TASK',
+      'CHORE', 'DOCS', 'DOC', 'PATCH', 'UPDATE', 'REFACTOR', 'BUILD', 'CI',
+      'BATCH', 'STEP', 'PART', 'REV', 'VER', 'RELEASE',
+    };
+    final pattern = RegExp(r'\b([A-Za-z]{2,6})[-_](\d{1,6})\b');
+    for (final m in pattern.allMatches(text)) {
+      final prefix = m.group(1)!.toUpperCase();
+      final num = m.group(2)!;
+      if (ignoredPrefixes.contains(prefix)) continue;
+      if (prefix == 'ISSUE') return 'Issue-$num';
+      return '$prefix-$num';
+    }
+    return null;
+  }
+
+  /// Extracts a normalized issue reference (e.g. "SOL-56", "DEV-79", "Issue-4095")
+  /// from text (branch name, PR title, commit message, etc.).
   static String? extractIssueRef(String text) {
     if (text.isEmpty) return null;
-    final pattern = RegExp(
-      r'(?:[Ii]ssue|[Pp][Vv][Mm]|[Aa]ccounting|[Hh]earha)[-_ ]?#?(\d+)|'
-      r'(?:fix(?:es|ed)?|close[sd]?|resolve[sd]?)\s+#(\d+)|'
-      r'#(\d{2,6})\b|'
-      r'\b[A-Za-z]+-(\d{2,6})\b',
-      caseSensitive: false,
-    );
-    final match = pattern.firstMatch(text);
-    if (match != null) {
-      final num = match.group(1) ?? match.group(2) ?? match.group(3) ?? match.group(4);
-      if (num != null) return 'Issue-$num';
-    }
+
+    // 1. Explicit ticket key like SOL-56, DEV-79, PVM-4095, GH-39
+    final key = extractTicketKey(text);
+    if (key != null) return key;
+
+    // 2. Issue-123, issue_123, Issue#123
+    final issueMatch = RegExp(r'(?:[Ii]ssue)[-_ ]?#?(\d+)', caseSensitive: false).firstMatch(text);
+    if (issueMatch != null) return 'Issue-${issueMatch.group(1)}';
+
+    // 3. Fixes #123, Closes #123
+    final fixMatch = RegExp(r'(?:fix(?:es|ed)?|close[sd]?|resolve[sd]?)\s+#?(\d+)', caseSensitive: false).firstMatch(text);
+    if (fixMatch != null) return 'Issue-${fixMatch.group(1)}';
+
+    // 4. #123
+    final hashMatch = RegExp(r'#(\d{1,6})\b').firstMatch(text);
+    if (hashMatch != null) return 'Issue-${hashMatch.group(1)}';
+
+    // 5. Standalone number in branch or path: e.g. 4095-tax-calc, feat/4095, fix/39
+    final numMatch = RegExp(r'(?:^|/|[_\-])(\d{2,6})(?:[_\-]|$|\b)').firstMatch(text);
+    if (numMatch != null) return 'Issue-${numMatch.group(1)}';
+
     return null;
   }
 
@@ -114,17 +189,49 @@ class GitHubService {
   static List<String> extractAllIssueRefs(String text) {
     if (text.isEmpty) return [];
     final results = <String>{};
-    final pattern = RegExp(
-      r'(?:[Ii]ssue|[Pp][Vv][Mm]|[Aa]ccounting|[Hh]earha)[-_ ]?#?(\d+)|'
-      r'(?:fix(?:es|ed)?|close[sd]?|resolve[sd]?)\s+#(\d+)|'
-      r'#(\d{2,6})\b|'
-      r'\b[A-Za-z]+-(\d{2,6})\b',
-      caseSensitive: false,
-    );
-    for (final match in pattern.allMatches(text)) {
-      final num = match.group(1) ?? match.group(2) ?? match.group(3) ?? match.group(4);
-      if (num != null) results.add('Issue-$num');
+    const ignoredPrefixes = {
+      'HTTP', 'UTF', 'PAGE', 'FEAT', 'FIX', 'BUG', 'TEST', 'TASK',
+      'CHORE', 'DOCS', 'DOC', 'PATCH', 'UPDATE', 'REFACTOR', 'BUILD', 'CI',
+      'BATCH', 'STEP', 'PART', 'REV', 'VER', 'RELEASE',
+    };
+
+    // 1. All ticket keys: SOL-56, DEV-79, etc.
+    final keyPattern = RegExp(r'\b([A-Za-z]{2,6})[-_](\d{1,6})\b');
+    for (final m in keyPattern.allMatches(text)) {
+      final prefix = m.group(1)!.toUpperCase();
+      final num = m.group(2)!;
+      if (ignoredPrefixes.contains(prefix)) continue;
+      if (prefix == 'ISSUE') {
+        results.add('Issue-$num');
+      } else {
+        results.add('$prefix-$num');
+      }
     }
+
+    // 2. Issue-123
+    final issuePattern = RegExp(r'(?:[Ii]ssue)[-_ ]?#?(\d+)', caseSensitive: false);
+    for (final m in issuePattern.allMatches(text)) {
+      results.add('Issue-${m.group(1)}');
+    }
+
+    // 3. Fixes #123
+    final fixPattern = RegExp(r'(?:fix(?:es|ed)?|close[sd]?|resolve[sd]?)\s+#?(\d+)', caseSensitive: false);
+    for (final m in fixPattern.allMatches(text)) {
+      results.add('Issue-${m.group(1)}');
+    }
+
+    // 4. #123
+    final hashPattern = RegExp(r'#(\d{1,6})\b');
+    for (final m in hashPattern.allMatches(text)) {
+      results.add('Issue-${m.group(1)}');
+    }
+
+    // 5. Standalone number in branch or path
+    final numPattern = RegExp(r'(?:^|/|[_\-])(\d{2,6})(?:[_\-]|$|\b)');
+    for (final m in numPattern.allMatches(text)) {
+      results.add('Issue-${m.group(1)}');
+    }
+
     return results.toList();
   }
 
@@ -201,6 +308,68 @@ class GitHubService {
     return false;
   }
 
+  /// Fetches tickets (issues) assigned to or created by the user (both open and closed).
+  Future<List<GitHubTicket>> getAssignedTickets(String repo) async {
+    repo = normalizeRepo(repo);
+    if (_cachedTickets.containsKey(repo)) return _cachedTickets[repo]!;
+
+    final ticketsMap = <int, GitHubTicket>{};
+    _log('  Fetching tickets assigned to $username in $repo (open & closed)…');
+
+    Future<void> fetchIssues(Uri uri) async {
+      final resp = await _getWithRetry(uri);
+      if (resp != null && resp.statusCode == 200) {
+        try {
+          final List<dynamic> data = jsonDecode(resp.body);
+          for (final item in data) {
+            final num = item['number'] as int;
+            final title = item['title'] as String? ?? '';
+            final body = item['body'] as String?;
+            final state = item['state'] as String? ?? 'open';
+            final createdAt = item['created_at'] != null ? DateTime.parse(item['created_at']) : null;
+            final closedAt = item['closed_at'] != null ? DateTime.parse(item['closed_at']) : null;
+            final updatedAt = item['updated_at'] != null ? DateTime.parse(item['updated_at']) : null;
+
+            final ticketKey = extractTicketKey(title) ?? extractTicketKey(body ?? '');
+
+            ticketsMap[num] = GitHubTicket(
+              number: num,
+              title: title,
+              body: body,
+              state: state,
+              createdAt: createdAt,
+              closedAt: closedAt,
+              updatedAt: updatedAt,
+              ticketKey: ticketKey,
+            );
+          }
+        } catch (e) {
+          _log('  ⚠ Error parsing issues: $e', SyncLogLevel.warning);
+        }
+      }
+    }
+
+    // 1. Issues assigned to user
+    await fetchIssues(Uri.parse(
+      'https://api.github.com/repos/$repo/issues'
+      '?state=all&assignee=${Uri.encodeComponent(username)}'
+      '&sort=updated&direction=desc&per_page=100',
+    ));
+
+    // 2. Issues created by user
+    await fetchIssues(Uri.parse(
+      'https://api.github.com/repos/$repo/issues'
+      '?state=all&creator=${Uri.encodeComponent(username)}'
+      '&sort=updated&direction=desc&per_page=100',
+    ));
+
+    final result = ticketsMap.values.toList();
+    _cachedTickets[repo] = result;
+    final closedCount = result.where((t) => t.state == 'closed').length;
+    _log('  ✓ Found ${result.length} ticket(s) for $username ($closedCount closed)');
+    return result;
+  }
+
   /// Fetches the user's recent push/PR events across GitHub.
   Future<List<UserPushEvent>> getUserPushEvents() async {
     if (_cachedPushEvents != null) return _cachedPushEvents!;
@@ -259,7 +428,7 @@ class GitHubService {
 
     final prList = <UserPR>[];
     final uri = Uri.parse(
-      'https://api.github.com/repos/$repo/pulls?state=all&sort=updated&direction=desc&per_page=60',
+      'https://api.github.com/repos/$repo/pulls?state=all&sort=updated&direction=desc&per_page=100',
     );
     final response = await _getWithRetry(uri);
     if (response != null && response.statusCode == 200) {
@@ -299,6 +468,7 @@ class GitHubService {
     }
 
     _cachedPRs[repo] = prList;
+    _log('  ✓ Found ${prList.length} user PR branch(es) (including merged & closed)');
     return prList;
   }
 
@@ -357,8 +527,13 @@ class GitHubService {
     return list;
   }
 
-  /// Fetches active branches that belong specifically to the user (not other team members).
-  Future<List<String>> listUserBranches(String repo) async {
+  /// Fetches candidate branches that the user worked on or committed to.
+  Future<List<String>> listUserBranches(
+    String repo, {
+    List<GitHubTicket>? assignedTickets,
+    DateTime? since,
+    DateTime? until,
+  }) async {
     repo = normalizeRepo(repo);
     if (_cachedUserBranches.containsKey(repo)) {
       return _cachedUserBranches[repo]!;
@@ -366,7 +541,7 @@ class GitHubService {
 
     final userBranches = <String>{};
 
-    // 1. Branches from user's PRs
+    // 1. Branches from user's PRs (including closed and merged!)
     final prs = await getUserPullRequests(repo);
     for (final pr in prs) {
       if (pr.branch.isNotEmpty) userBranches.add(pr.branch);
@@ -381,23 +556,58 @@ class GitHubService {
       }
     }
 
-    // 3. Branches with user's name or prefix
+    // 3. Active repository branches
     final uri = Uri.parse('https://api.github.com/repos/$repo/branches?per_page=100');
     final response = await _getWithRetry(uri);
     if (response != null && response.statusCode == 200) {
       try {
         final List<dynamic> data = jsonDecode(response.body);
         final target = username.toLowerCase();
+
+        final ticketNumbers = (assignedTickets ?? []).map((t) => t.number.toString()).toSet();
+        final ticketKeys = (assignedTickets ?? [])
+            .where((t) => t.ticketKey != null)
+            .map((t) => t.ticketKey!.toLowerCase())
+            .toSet();
+
         for (final b in data) {
           final name = b['name'] as String? ?? '';
+          if (name.isEmpty) continue;
           final lower = name.toLowerCase();
-          if (lower.startsWith('$target/') ||
+
+          // Check if name contains username prefix
+          final isUserNamed = lower.startsWith('$target/') ||
               lower.contains(target) ||
-              lower.startsWith('osobol/')) {
+              lower.startsWith('osobol/');
+
+          // Check if matches an assigned ticket
+          bool matchesTicket = false;
+          for (final key in ticketKeys) {
+            if (lower.contains(key)) {
+              matchesTicket = true;
+              break;
+            }
+          }
+          if (!matchesTicket) {
+            for (final num in ticketNumbers) {
+              final reg = RegExp('(?:^|/|[_-])$num(?:[_-]|\$)', caseSensitive: false);
+              if (reg.hasMatch(name)) {
+                matchesTicket = true;
+                break;
+              }
+            }
+          }
+
+          // Check if has an identifiable ticket ref (e.g. feat/taxes-page-sol-56)
+          final hasTicketRef = extractIssueRef(name) != null;
+
+          if (isUserNamed || matchesTicket || hasTicketRef) {
             userBranches.add(name);
           }
         }
-      } catch (_) {}
+      } catch (e) {
+        _log('  ⚠ Error parsing branches: $e', SyncLogLevel.warning);
+      }
     }
 
     final result = userBranches.toList();
@@ -408,13 +618,230 @@ class GitHubService {
   /// Legacy alias so existing callers remain compatible.
   Future<List<String>> listIssueBranches(String repo) => listUserBranches(repo);
 
-  /// Builds a map of { issueRef → [commit UTC timestamps] } for a single day.
-  ///
-  /// Gathers the user's actual history from:
-  /// 1. Commits authored by the user on the repository (default branch, merged work).
-  /// 2. User's Pull Requests (preserves branch names & commit dates for merged/deleted branches).
-  /// 3. User's push events.
-  /// 4. User's active branches (unmerged work).
+  /// Comprehensive collector of all user work (tickets, branches, commits) on [repo].
+  /// Gathers active branches, closed/merged PR branches, assigned tickets, and commits.
+  Future<List<UserBranchWork>> getUserWorkUnits(
+    String repo, {
+    DateTime? since,
+    DateTime? until,
+  }) async {
+    repo = normalizeRepo(repo);
+    final cacheKey = '$repo::${since?.toIso8601String()}::${until?.toIso8601String()}';
+    if (_cachedWorkUnits.containsKey(cacheKey)) {
+      return _cachedWorkUnits[cacheKey]!;
+    }
+
+    _log('Gathering your GitHub work history for $repo…');
+
+    // 1. Assigned tickets (open & closed)
+    final tickets = await getAssignedTickets(repo);
+
+    // 2. User Pull Requests (active, merged, closed)
+    final prs = await getUserPullRequests(repo);
+
+    // 3. User candidate branches (active and closed)
+    final branches = await listUserBranches(
+      repo,
+      assignedTickets: tickets,
+      since: since,
+      until: until,
+    );
+
+    // 4. Default branch commits by author
+    final defaultCommits = <Map<String, dynamic>>[];
+    final sinceParam = since != null ? '&since=${since.toIso8601String()}' : '';
+    final untilParam = until != null ? '&until=${until.toIso8601String()}' : '';
+    final commitsUri = Uri.parse(
+      'https://api.github.com/repos/$repo/commits'
+      '?author=${Uri.encodeComponent(username)}'
+      '$sinceParam$untilParam&per_page=100',
+    );
+    final commitsResp = await _getWithRetry(commitsUri);
+    if (commitsResp != null && commitsResp.statusCode == 200) {
+      try {
+        final List<dynamic> data = jsonDecode(commitsResp.body);
+        for (final c in data) {
+          if (_isUserAuthor(c)) defaultCommits.add(c);
+        }
+      } catch (_) {}
+    }
+
+    // 5. User Push Events
+    final pushEvents = await getUserPushEvents();
+
+    // Map: branchName -> UserBranchWork
+    final workMap = <String, UserBranchWork>{};
+
+    void addWork(
+      String branchName, {
+      String? ticketRef,
+      String? ticketTitle,
+      bool isClosed = false,
+      List<DateTime>? timestamps,
+      String? source,
+    }) {
+      final existing = workMap[branchName];
+      final combinedTimestamps = <DateTime>{
+        ...?existing?.commitTimestamps,
+        ...?timestamps,
+      }.toList()..sort();
+
+      final resolvedRef = ticketRef ??
+          existing?.ticketRef ??
+          extractIssueRef(branchName);
+
+      final resolvedTitle = ticketTitle ?? existing?.ticketTitle;
+      final resolvedClosed = (existing?.isClosed ?? false) || isClosed;
+
+      workMap[branchName] = UserBranchWork(
+        branchName: branchName,
+        ticketRef: resolvedRef,
+        ticketTitle: resolvedTitle,
+        isClosed: resolvedClosed,
+        commitTimestamps: combinedTimestamps,
+        source: source ?? existing?.source,
+      );
+    }
+
+    // A. Add PR branches (covers closed and merged branches!)
+    for (final pr in prs) {
+      final prRef = extractIssueRef(pr.branch) ??
+          extractIssueRef(pr.title) ??
+          'Issue-${pr.number}';
+
+      final timestamps = <DateTime>[...pr.commitTimestamps];
+      if (pr.mergedAt != null) timestamps.add(pr.mergedAt!);
+      if (pr.createdAt != null) timestamps.add(pr.createdAt!);
+
+      addWork(
+        pr.branch,
+        ticketRef: prRef,
+        ticketTitle: pr.title,
+        isClosed: true,
+        timestamps: timestamps,
+        source: 'pr',
+      );
+    }
+
+    // B. Add commits on active candidate branches
+    for (final branch in branches) {
+      if (branch == 'main' || branch == 'master') continue;
+      final timestamps = await _getCommitTimestampsOnBranch(
+        repo,
+        branch,
+        since ?? DateTime.now().subtract(const Duration(days: 30)),
+        until ?? DateTime.now().add(const Duration(days: 1)),
+      );
+      if (timestamps.isNotEmpty || !workMap.containsKey(branch)) {
+        addWork(
+          branch,
+          timestamps: timestamps,
+          source: 'branch',
+        );
+      }
+    }
+
+    // C. Add commits from default branch
+    for (final commit in defaultCommits) {
+      final dateStr = commit['commit']?['author']?['date'] as String?;
+      if (dateStr == null) continue;
+      final ts = DateTime.parse(dateStr);
+      final msg = commit['commit']?['message'] as String? ?? '';
+      final sha = commit['sha'] as String? ?? '';
+
+      final msgRefs = extractAllIssueRefs(msg);
+      String? matchedRef;
+      if (msgRefs.isNotEmpty) {
+        matchedRef = msgRefs.first;
+      } else if (sha.isNotEmpty) {
+        final prRefs = await _getIssueRefsFromCommitPulls(repo, sha);
+        if (prRefs.isNotEmpty) matchedRef = prRefs.first;
+      }
+
+      if (matchedRef != null) {
+        final branchMatch = workMap.keys.firstWhere(
+          (b) => extractIssueRef(b) == matchedRef,
+          orElse: () => 'main',
+        );
+        addWork(
+          branchMatch,
+          ticketRef: matchedRef,
+          timestamps: [ts],
+          source: 'commit',
+        );
+      }
+    }
+
+    // D. Add Push Events for this repo
+    for (final ev in pushEvents) {
+      if (ev.repo == repo && ev.ref.isNotEmpty) {
+        final cleanRef = ev.ref.replaceFirst(RegExp(r'^refs/heads/'), '');
+        addWork(
+          cleanRef,
+          ticketRef: ev.issueRef,
+          timestamps: [ev.timestamp],
+          source: 'push',
+        );
+      }
+    }
+
+    // E. Link Assigned Tickets to Branches (or create work unit for assigned tickets)
+    for (final ticket in tickets) {
+      final ticketRef = ticket.preferredRef;
+      final ticketNumStr = ticket.number.toString();
+      final key = ticket.ticketKey?.toLowerCase();
+
+      // Find matching branch among workMap
+      String? matchedBranch;
+      for (final branchName in workMap.keys) {
+        final bLower = branchName.toLowerCase();
+        if (key != null && bLower.contains(key)) {
+          matchedBranch = branchName;
+          break;
+        }
+        final reg = RegExp('(?:^|/|[_-])$ticketNumStr(?:[_-]|\$)', caseSensitive: false);
+        if (reg.hasMatch(branchName)) {
+          matchedBranch = branchName;
+          break;
+        }
+      }
+
+      final ticketTimestamps = <DateTime>[
+        if (ticket.closedAt != null) ticket.closedAt!,
+        if (ticket.updatedAt != null) ticket.updatedAt!,
+        if (ticket.createdAt != null) ticket.createdAt!,
+      ];
+
+      if (matchedBranch != null) {
+        addWork(
+          matchedBranch,
+          ticketRef: ticketRef,
+          ticketTitle: ticket.title,
+          isClosed: ticket.state == 'closed' || (workMap[matchedBranch]?.isClosed ?? false),
+          timestamps: ticketTimestamps,
+          source: 'ticket',
+        );
+      } else {
+        // Assigned ticket without an identified git branch
+        addWork(
+          'ticket-${ticket.number}',
+          ticketRef: ticketRef,
+          ticketTitle: ticket.title,
+          isClosed: ticket.state == 'closed',
+          timestamps: ticketTimestamps,
+          source: 'ticket',
+        );
+      }
+    }
+
+    final result = workMap.values.toList();
+    _cachedWorkUnits[cacheKey] = result;
+
+    _log('  ✓ Loaded ${result.length} work units across branches & tickets for $repo');
+    return result;
+  }
+
+  /// Legacy method: builds a map of { issueRef → [commit UTC timestamps] } for a single day.
   Future<Map<String, List<DateTime>>> getRefsWithTimestampsForDay(
     String repo,
     DateTime dayStart,
@@ -431,7 +858,7 @@ class GitHubService {
       }
     }
 
-    // 1. Commits on default branch authored by user for this day (covers merged PRs)
+    // 1. Commits on default branch
     final commitsUri = Uri.parse(
       'https://api.github.com/repos/$repo/commits'
       '?author=${Uri.encodeComponent(username)}'
@@ -472,7 +899,7 @@ class GitHubService {
       }
     }
 
-    // 2. User's Pull Requests (covers merged/deleted branches)
+    // 2. User's Pull Requests
     final prs = await getUserPullRequests(repo);
     for (final pr in prs) {
       final prRef = extractIssueRef(pr.branch) ??
@@ -503,7 +930,7 @@ class GitHubService {
       }
     }
 
-    // 4. User's active branches (unmerged feature work)
+    // 4. User's active branches
     for (final branch in userBranches) {
       final timestamps = await _getCommitTimestampsOnBranch(
         repo,
@@ -534,6 +961,7 @@ class GitHubService {
     DateTime since,
     DateTime until,
   ) async {
+    // 1. Try with author filter
     final uri = Uri.parse(
       'https://api.github.com/repos/$repo/commits'
       '?sha=${Uri.encodeComponent(branch)}'
@@ -543,22 +971,44 @@ class GitHubService {
       '&per_page=100',
     );
     final response = await _getWithRetry(uri);
-    if (response == null || response.statusCode != 200) return [];
+    final timestamps = <DateTime>[];
 
-    try {
-      final List<dynamic> data = jsonDecode(response.body);
-      final timestamps = <DateTime>[];
-      for (final commit in data) {
-        if (!_isUserAuthor(commit)) continue;
-
-        final dateStr = commit['commit']?['author']?['date'] as String?;
-        if (dateStr != null) timestamps.add(DateTime.parse(dateStr));
+    if (response != null && response.statusCode == 200) {
+      try {
+        final List<dynamic> data = jsonDecode(response.body);
+        for (final commit in data) {
+          if (!_isUserAuthor(commit)) continue;
+          final dateStr = commit['commit']?['author']?['date'] as String?;
+          if (dateStr != null) timestamps.add(DateTime.parse(dateStr));
+        }
+      } catch (e) {
+        _log('  ⚠ Error decoding commits for $branch: $e', SyncLogLevel.warning);
       }
-      return timestamps;
-    } catch (e) {
-      _log('  ⚠ Error decoding commits for $branch: $e', SyncLogLevel.warning);
-      return [];
     }
+
+    // 2. If author query returned empty, try without author filter in case git email differs
+    if (timestamps.isEmpty) {
+      final fallbackUri = Uri.parse(
+        'https://api.github.com/repos/$repo/commits'
+        '?sha=${Uri.encodeComponent(branch)}'
+        '&since=${since.toIso8601String()}'
+        '&until=${until.toIso8601String()}'
+        '&per_page=50',
+      );
+      final fallbackResp = await _getWithRetry(fallbackUri);
+      if (fallbackResp != null && fallbackResp.statusCode == 200) {
+        try {
+          final List<dynamic> data = jsonDecode(fallbackResp.body);
+          for (final commit in data) {
+            if (!_isUserAuthor(commit)) continue;
+            final dateStr = commit['commit']?['author']?['date'] as String?;
+            if (dateStr != null) timestamps.add(DateTime.parse(dateStr));
+          }
+        } catch (_) {}
+      }
+    }
+
+    return timestamps;
   }
 
   /// Checks if the commit was authored or committed by the user.

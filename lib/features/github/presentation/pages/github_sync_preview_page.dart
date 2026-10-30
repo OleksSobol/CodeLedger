@@ -264,8 +264,8 @@ class _GitHubSyncPreviewPageState extends ConsumerState<GitHubSyncPreviewPage> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Make sure your branches are named Issue-XXXX and that '
-            'you committed within the selected date range.',
+            'We scanned assigned tickets (open & closed), user PR branches, '
+            'and commits across your linked repositories.',
             textAlign: TextAlign.center,
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
@@ -482,6 +482,20 @@ class _MatchTile extends StatelessWidget {
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
+            if (match.ticketTitle != null &&
+                match.ticketTitle!.isNotEmpty &&
+                match.ticketTitle != description) ...[
+              const SizedBox(height: 2),
+              Text(
+                match.ticketTitle!,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontWeight: FontWeight.w500,
+                  color: theme.colorScheme.onSurface,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
             if (description.isNotEmpty) ...[
               const SizedBox(height: 2),
               Text(
@@ -491,6 +505,56 @@ class _MatchTile extends StatelessWidget {
                 ),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
+              ),
+            ],
+            if (match.branchName != null && match.branchName!.isNotEmpty) ...[
+              const SizedBox(height: 3),
+              Row(
+                children: [
+                  Icon(
+                    Icons.fork_right,
+                    size: 13,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 4),
+                  Flexible(
+                    child: Text(
+                      match.branchName!,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        fontFamily: 'monospace',
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (match.isClosedBranch) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        'closed',
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          fontSize: 9,
+                          color: theme.colorScheme.outline,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+            if (match.matchReason != null && match.matchReason!.isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(
+                match.matchReason!,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: theme.colorScheme.primary,
+                  fontSize: 10,
+                ),
               ),
             ],
             if (match.existingRef != null && match.existingRef!.isNotEmpty) ...[
