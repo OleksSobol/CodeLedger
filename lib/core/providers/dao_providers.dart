@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../database/daos/client_dao.dart';
 import '../database/daos/expense_dao.dart';
+import '../database/daos/expense_transaction_dao.dart';
 import '../database/daos/project_dao.dart';
 import '../database/daos/time_entry_dao.dart';
 import '../database/daos/invoice_dao.dart';
@@ -34,4 +35,8 @@ final userProfileDaoProvider = Provider<UserProfileDao>((ref) {
 
 final expenseDaoProvider = Provider<ExpenseDao>((ref) {
   return ExpenseDao(ref.watch(databaseProvider));
+});
+
+final expenseTransactionDaoProvider = Provider<ExpenseTransactionDao>((ref) {
+  return ExpenseTransactionDao(ref.watch(databaseProvider));
 });

@@ -1,7 +1,30 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../core/database/daos/expense_dao.dart';
+import '../../../../core/database/daos/expense_transaction_dao.dart';
 import '../../../../core/providers/repository_providers.dart';
+import '../../data/receipt_storage_service.dart';
+
+final receiptStorageServiceProvider = Provider<ReceiptStorageService>((ref) {
+  return ReceiptStorageService();
+});
+
+final expenseTransactionsProvider =
+    StreamProvider<List<ExpenseTransactionWithCategory>>((ref) {
+  return ref.watch(expenseTransactionRepositoryProvider).watchAllWithCategory();
+});
+
+final expenseCategoriesProvider = StreamProvider<List<ExpenseCategory>>((ref) {
+  return ref.watch(expenseTransactionRepositoryProvider).watchCategories();
+});
+
+final transactionDeductibleThisYearProvider = Provider<double>((ref) {
+  final transactions = ref.watch(expenseTransactionsProvider).value ?? [];
+  final currentYear = DateTime.now().year;
+  return transactions
+      .where((t) => t.transaction.date.year == currentYear)
+      .fold(0.0, (sum, t) => sum + t.deductibleAmount);
+});
 
 final expensesProvider = StreamProvider<List<Expense>>((ref) {
   return ref.watch(expenseRepositoryProvider).watchAll();
@@ -45,3 +68,9 @@ double annualDeductibleForYear(List<Expense> expenses, int year) {
   }
   return total;
 }
+
+final combinedThisYearDeductibleProvider = Provider<double>((ref) {
+  final recurring = ref.watch(thisYearDeductibleProvider);
+  final transactions = ref.watch(transactionDeductibleThisYearProvider);
+  return recurring + transactions;
+});

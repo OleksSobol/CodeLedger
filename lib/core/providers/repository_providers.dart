@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../repositories/client_repository.dart';
 import '../repositories/expense_repository.dart';
+import '../repositories/expense_transaction_repository.dart';
 import '../repositories/project_repository.dart';
 import '../repositories/time_entry_repository.dart';
 import '../repositories/invoice_repository.dart';
@@ -9,6 +10,7 @@ import '../repositories/invoice_template_repository.dart';
 import '../repositories/user_profile_repository.dart';
 import '../repositories/drift/drift_client_repository.dart';
 import '../repositories/drift/drift_expense_repository.dart';
+import '../repositories/drift/drift_expense_transaction_repository.dart';
 import '../repositories/drift/drift_project_repository.dart';
 import '../repositories/drift/drift_time_entry_repository.dart';
 import '../repositories/drift/drift_invoice_repository.dart';
@@ -75,4 +77,11 @@ final expenseRepositoryProvider = Provider<ExpenseRepository>((ref) {
     return SupabaseExpenseRepository(ref.watch(supabaseProvider));
   }
   return DriftExpenseRepository(ref.watch(expenseDaoProvider));
+});
+
+final expenseTransactionRepositoryProvider =
+    Provider<ExpenseTransactionRepository>((ref) {
+  return DriftExpenseTransactionRepository(
+    ref.watch(expenseTransactionDaoProvider),
+  );
 });

@@ -15,6 +15,8 @@ import 'tables/invoice_line_items_table.dart';
 import 'tables/invoice_templates_table.dart';
 import 'tables/app_settings_table.dart';
 import 'tables/expenses_table.dart';
+import 'tables/expense_categories_table.dart';
+import 'tables/expense_transactions_table.dart';
 
 part 'app_database.g.dart';
 
@@ -29,6 +31,8 @@ part 'app_database.g.dart';
     InvoiceTemplates,
     AppSettings,
     Expenses,
+    ExpenseCategories,
+    ExpenseTransactions,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -38,7 +42,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -80,11 +84,37 @@ class AppDatabase extends _$AppDatabase {
       if (from < 6) {
         await m.createTable(expenses);
       }
+      if (from < 7) {
+        await m.createTable(expenseCategories);
+        await m.createTable(expenseTransactions);
+        await _seedScheduleCCategories();
+      }
     },
   );
 
+  Future<void> _seedScheduleCCategories() async {
+    await batch((b) {
+      b.insertAll(
+        expenseCategories,
+        kDefaultExpenseCategories
+            .map(
+              (c) => ExpenseCategoriesCompanion.insert(
+                id: c.id,
+                name: c.name,
+                irsScheduleCLine: c.irsScheduleCLine,
+                defaultBusinessPct: Value(c.defaultBusinessPct),
+              ),
+            )
+            .toList(),
+        mode: InsertMode.insertOrIgnore,
+      );
+    });
+  }
+
   Future<void> _seedDefaults() async {
     const uuid = Uuid();
+
+    await _seedScheduleCCategories();
 
     await into(
       userProfiles,
