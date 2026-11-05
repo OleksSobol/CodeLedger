@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../core/database/daos/expense_dao.dart';
+import '../../../../core/database/daos/expense_transaction_dao.dart';
 import '../../reports/data/models/tax_report_data.dart';
 
 class ExportService {
@@ -110,6 +111,52 @@ class ExportService {
     final dir = await getTemporaryDirectory();
     final filename =
         'expenses_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.csv';
+    final file = File('${dir.path}/$filename');
+    await file.writeAsString(csv);
+    return file;
+  }
+
+  Future<File> generateExpenseTransactionsCsv({
+    required List<ExpenseTransactionWithCategory> transactions,
+  }) async {
+    final rows = <List<dynamic>>[];
+    rows.add([
+      'Date',
+      'Title',
+      'Vendor',
+      'Category',
+      'Schedule C Line',
+      'Amount',
+      'Business Use %',
+      'Deductible Amount',
+      'Receipt Attached',
+      'Notes',
+    ]);
+
+    final dateFmt = DateFormat('yyyy-MM-dd');
+    final numFmt = NumberFormat('0.00');
+
+    for (final item in transactions) {
+      final t = item.transaction;
+      final c = item.category;
+      rows.add([
+        dateFmt.format(t.date),
+        t.title,
+        t.vendor ?? '',
+        c.name,
+        c.irsScheduleCLine,
+        numFmt.format(t.amount),
+        '${t.businessUsePct}%',
+        numFmt.format(item.deductibleAmount),
+        t.receiptPath != null && t.receiptPath!.isNotEmpty ? 'Yes' : 'No',
+        t.notes ?? '',
+      ]);
+    }
+
+    final csv = const CsvEncoder().convert(rows);
+    final dir = await getTemporaryDirectory();
+    final filename =
+        'expense_transactions_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.csv';
     final file = File('${dir.path}/$filename');
     await file.writeAsString(csv);
     return file;

@@ -31,6 +31,8 @@ import '../../features/reports/presentation/pages/wa_excise_report_page.dart';
 import '../../features/github/presentation/pages/github_sync_preview_page.dart';
 import '../../features/expenses/presentation/pages/expenses_page.dart';
 import '../../features/expenses/presentation/pages/expense_form_page.dart';
+import '../../features/expenses/presentation/pages/quick_capture_expense_page.dart';
+import '../database/daos/expense_transaction_dao.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 final _homeNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'home');
@@ -300,6 +302,15 @@ final appRouter = GoRouter(
       name: 'expenseAdd',
       parentNavigatorKey: _rootNavigatorKey,
       builder: (context, state) => const ExpenseFormPage(),
+    ),
+    GoRoute(
+      path: '/expenses/quick-capture',
+      name: 'expenseQuickCapture',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) {
+        final initial = state.extra as ExpenseTransactionWithCategory?;
+        return QuickCaptureExpensePage(initialTransaction: initial);
+      },
     ),
     GoRoute(
       path: '/expenses/edit',

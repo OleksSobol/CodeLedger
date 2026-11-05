@@ -174,13 +174,6 @@ class ShellScaffold extends ConsumerWidget {
           icon: const Icon(Icons.add),
           label: const Text('New Invoice'),
         );
-      case 3:
-        // Expenses: Add Expense
-        return FloatingActionButton.extended(
-          onPressed: () => context.push('/expenses/add'),
-          icon: const Icon(Icons.add),
-          label: const Text('Add Expense'),
-        );
       default:
         return null;
     }
