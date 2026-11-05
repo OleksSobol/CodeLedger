@@ -193,7 +193,7 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
           children: [
             // ── Preview card ──────────────────────────────────────────────
             _PreviewCard(
@@ -237,61 +237,53 @@ class _ExpenseFormPageState extends ConsumerState<ExpenseFormPage> {
             ),
             const SizedBox(height: 16),
 
-            // ── Amount + Frequency ────────────────────────────────────────
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _amountCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Amount',
-                      prefixText: '\$ ',
-                    ),
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
-                    ],
-                    validator: (v) {
-                      if (v == null || v.isEmpty) return 'Required';
-                      if ((double.tryParse(v) ?? 0) <= 0) {
-                        return 'Must be > 0';
-                      }
-                      return null;
-                    },
-                    onChanged: (_) => setState(() {}),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Frequency',
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      SegmentedButton<String>(
-                        segments: const [
-                          ButtonSegment(
-                            value: 'monthly',
-                            label: Text('Monthly'),
-                          ),
-                          ButtonSegment(value: 'annual', label: Text('Annual')),
-                        ],
-                        selected: {_frequency},
-                        onSelectionChanged: (s) =>
-                            setState(() => _frequency = s.first),
-                      ),
-                    ],
-                  ),
-                ),
+            // ── Amount ────────────────────────────────────────────────────
+            TextFormField(
+              controller: _amountCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Amount',
+                prefixText: '\$ ',
+              ),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
               ],
+              validator: (v) {
+                if (v == null || v.isEmpty) return 'Required';
+                if ((double.tryParse(v) ?? 0) <= 0) {
+                  return 'Must be > 0';
+                }
+                return null;
+              },
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 16),
+
+            // ── Frequency ─────────────────────────────────────────────────
+            Text(
+              'Frequency',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: SegmentedButton<String>(
+                showSelectedIcon: false,
+                segments: const [
+                  ButtonSegment(
+                    value: 'monthly',
+                    label: Text('Monthly'),
+                  ),
+                  ButtonSegment(value: 'annual', label: Text('Annual')),
+                ],
+                selected: {_frequency},
+                onSelectionChanged: (s) =>
+                    setState(() => _frequency = s.first),
+              ),
             ),
             const SizedBox(height: 20),
 
