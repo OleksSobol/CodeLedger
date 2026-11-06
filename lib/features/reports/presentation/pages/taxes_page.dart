@@ -179,11 +179,17 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
     if (!mounted) return;
     setState(() {
       if (fed != null) {
-        _federalRate = double.tryParse(fed) ?? 0.22;
+        final parsed = double.tryParse(fed);
+        if (parsed != null && parsed > 0) {
+          _federalRate = parsed <= 1.0 ? parsed : parsed / 100.0;
+        }
         _federalRateCtrl.text = (_federalRate * 100).toStringAsFixed(1);
       }
       if (se != null) {
-        _seRate = double.tryParse(se) ?? 0.153;
+        final parsed = double.tryParse(se);
+        if (parsed != null && parsed > 0) {
+          _seRate = parsed <= 1.0 ? parsed : parsed / 100.0;
+        }
         _seRateCtrl.text = (_seRate * 100).toStringAsFixed(1);
       }
     });
@@ -885,6 +891,7 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                           children: [
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
                                   q.label,
@@ -892,74 +899,40 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
-                                Text(
-                                  '${q.invoicesCount} ${q.invoicesCount == 1 ? 'inv' : 'invs'} · Invoiced ${cur.format(q.grossCollected)}',
-                                  style: theme.textTheme.bodySmall,
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    '${q.invoicesCount} ${q.invoicesCount == 1 ? 'inv' : 'invs'} · Invoiced ${cur.format(q.grossCollected)}',
+                                    style: theme.textTheme.bodySmall,
+                                    textAlign: TextAlign.end,
+                                  ),
                                 ),
                               ],
                             ),
                             const Divider(height: 12),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  'State Tax Reserve:',
-                                  style: theme.textTheme.bodySmall,
-                                ),
-                                Text(
-                                  cur.format(q.stateTax),
-                                  style: theme.textTheme.bodySmall,
-                                ),
-                              ],
+                            _SummaryRow(
+                              'State Tax Reserve:',
+                              cur.format(q.stateTax),
+                              theme,
                             ),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  'Federal Tax Reserve:',
-                                  style: theme.textTheme.bodySmall,
-                                ),
-                                Text(
-                                  cur.format(q.federalTax),
-                                  style: theme.textTheme.bodySmall,
-                                ),
-                              ],
+                            _SummaryRow(
+                              'Federal Tax Reserve:',
+                              cur.format(q.federalTax),
+                              theme,
                             ),
                             const SizedBox(height: 4),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  '→ Must Stay in Bank:',
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                Text(
-                                  cur.format(q.totalTaxReserve),
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    color: theme.colorScheme.primary,
-                                  ),
-                                ),
-                              ],
+                            _SummaryRow(
+                              '→ Must Stay in Bank:',
+                              cur.format(q.totalTaxReserve),
+                              theme,
+                              bold: true,
+                              valueColor: theme.colorScheme.primary,
                             ),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  '→ Withdrawn (Operating):',
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: theme.colorScheme.onSurfaceVariant,
-                                  ),
-                                ),
-                                Text(
-                                  cur.format(q.takeHomeWithdrawn),
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: theme.colorScheme.onSurfaceVariant,
-                                  ),
-                                ),
-                              ],
+                            _SummaryRow(
+                              '→ Withdrawn (Operating):',
+                              cur.format(q.takeHomeWithdrawn),
+                              theme,
+                              valueColor: theme.colorScheme.onSurfaceVariant,
                             ),
                           ],
                         ),
@@ -3324,12 +3297,14 @@ class _SummaryRow extends StatelessWidget {
   final String value;
   final ThemeData theme;
   final bool bold;
+  final Color? valueColor;
 
   const _SummaryRow(
     this.label,
     this.value,
     this.theme, {
     this.bold = false,
+    this.valueColor,
   });
 
   @override
@@ -3337,6 +3312,8 @@ class _SummaryRow extends StatelessWidget {
     final style = theme.textTheme.bodySmall?.copyWith(
       fontWeight: bold ? FontWeight.bold : null,
     );
+    final valStyle =
+        valueColor != null ? style?.copyWith(color: valueColor) : style;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
@@ -3345,7 +3322,7 @@ class _SummaryRow extends StatelessWidget {
         children: [
           Expanded(child: Text(label, style: style)),
           const SizedBox(width: 8),
-          Text(value, style: style),
+          Text(value, style: valStyle),
         ],
       ),
     );

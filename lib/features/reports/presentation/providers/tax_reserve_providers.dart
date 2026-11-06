@@ -19,6 +19,15 @@ final bankReserveYearProvider = NotifierProvider<BankReserveYearNotifier, int>(
   BankReserveYearNotifier.new,
 );
 
+double _parseRate(String? raw, double defaultFraction) {
+  if (raw == null || raw.trim().isEmpty) return defaultFraction;
+  final val = double.tryParse(raw.trim());
+  if (val == null || val <= 0) return defaultFraction;
+  // If stored as decimal fraction (<= 1.0, e.g. 0.22 or 0.153), use directly.
+  // If stored as whole percentage (> 1.0, e.g. 22.0 or 15.3), convert to decimal fraction.
+  return val <= 1.0 ? val : val / 100.0;
+}
+
 /// Computes the dedicated annual bank reserve ledger summary. (DEV-71)
 /// Calculates how much money should be in the tax bank account for Washington DOR
 /// and Federal IRS taxes, plus realistic total invoice receipts and operating withdrawals.
@@ -32,8 +41,8 @@ final bankTaxReserveSummaryProvider = FutureProvider.family<BankTaxReserveSummar
   final boStr = await dao.getValue('wa_bo_rate');
   final receiptsStr = await dao.getValue('tax_receipts');
 
-  final federalRate = (double.tryParse(fedStr ?? '') ?? 22.0) / 100.0;
-  final seRate = (double.tryParse(seStr ?? '') ?? 15.3) / 100.0;
+  final federalRate = _parseRate(fedStr, 0.22);
+  final seRate = _parseRate(seStr, 0.153);
   final boRate = double.tryParse(boStr ?? '') ?? 0.00471;
 
   double totalDeductibleReceipts = 0.0;
