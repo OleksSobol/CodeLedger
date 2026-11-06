@@ -214,5 +214,51 @@ void main() {
       expect(find.text('Realistic Invoices & Withdrawals'), findsOneWidget);
       expect(find.byIcon(Icons.copy_all), findsWidgets);
     });
+
+    testWidgets('renders connected expenses deductions in realistic withdrawals reconciliation', (tester) async {
+      final now = DateTime.now();
+      final testSummary = BankTaxReserveSummary(
+        year: now.year,
+        totalInvoicesCount: 26,
+        totalGrossCollected: 50285.0,
+        totalSubtotal: 45000.0,
+        totalSalesTax: 4635.0,
+        totalBoTax: 211.95,
+        totalStateTax: 4846.95,
+        totalReceiptDeductions: 170.95,
+        totalRecurringDeductions: 2712.0,
+        netTaxableIncome: 42117.05,
+        seTax: 5951.10,
+        federalIncomeTax: 8610.15,
+        totalFederalTax: 14561.25,
+        totalBankReserve: 19408.20,
+        totalTakeHomeWithdrawn: 30876.80,
+        federalRate: 0.22,
+        seRate: 0.153,
+        boRate: 0.00471,
+        quarters: const [],
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            bankTaxReserveSummaryProvider(now.year).overrideWith((ref) => Future.value(testSummary)),
+            allInvoicesProvider.overrideWith((ref) => Stream.value([])),
+            activeClientsProvider.overrideWith((ref) => Stream.value(<Client>[])),
+            totalMonthlyDeductibleProvider.overrideWith((ref) => 226.0),
+            expenseTransactionsProvider.overrideWith((ref) => Stream.value([])),
+          ],
+          child: const MaterialApp(
+            home: TaxesPage(),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(find.text('Tax-deductible expenses (Schedule C)'), findsOneWidget);
+      expect(find.text('Net taxable business income'), findsOneWidget);
+      expect(find.textContaining('Expenses connected:'), findsOneWidget);
+    });
   });
 }

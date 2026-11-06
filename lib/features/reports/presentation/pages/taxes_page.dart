@@ -12,6 +12,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/constants/us_states.dart';
 import '../../../../core/database/app_database.dart';
+import '../../../../core/database/daos/expense_transaction_dao.dart';
 import '../../../../core/providers/repository_providers.dart';
 import '../../../../core/providers/theme_provider.dart';
 import '../../../clients/presentation/providers/client_providers.dart';
@@ -306,9 +307,22 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
       totalNet += inv.subtotal;
       totalTax += inv.taxAmount;
     }
-    final seBase = totalNet * 0.9235;
+
+    final reportYear = _dateRange!.start.year;
+    final transactions = ref.read(expenseTransactionsProvider).value ?? [];
+    final dbDed = transactions
+        .where((t) => t.transaction.date.year == reportYear)
+        .fold(0.0, (sum, t) => sum + t.deductibleAmount);
+    final legacyDed = _receipts
+        .where((r) => r.isTaxDeductible)
+        .fold(0.0, (sum, r) => sum + r.amount);
+    final monthlyRecurring = ref.read(totalMonthlyDeductibleProvider);
+    final totalDeductible = dbDed + legacyDed + (monthlyRecurring * 12);
+    final netTaxable = (totalNet - totalDeductible).clamp(0.0, double.infinity);
+
+    final seBase = netTaxable * 0.9235;
     final seTax = seBase * _seRate;
-    final fedBase = (totalNet - seTax / 2).clamp(0.0, double.infinity);
+    final fedBase = (netTaxable - seTax / 2).clamp(0.0, double.infinity);
     final fedTax = fedBase * _federalRate;
     final totalEstTax = seTax + fedTax;
     final bankReserve = totalEstTax + totalTax;
@@ -601,6 +615,21 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                       theme,
                       bold: true,
                     ),
+                    if (summary.totalReceiptDeductions > 0 ||
+                        summary.totalRecurringDeductions > 0) ...[
+                      const SizedBox(height: 6),
+                      _SummaryRow(
+                        'Tax-deductible expenses (Schedule C)',
+                        '− ${cur.format(summary.totalReceiptDeductions + summary.totalRecurringDeductions)}',
+                        theme,
+                      ),
+                      const SizedBox(height: 6),
+                      _SummaryRow(
+                        'Net taxable business income',
+                        cur.format(summary.netTaxableIncome),
+                        theme,
+                      ),
+                    ],
                     const SizedBox(height: 6),
                     _SummaryRow(
                       'What you took out (Operating / Pay)',
@@ -653,6 +682,39 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                         ),
                       ],
                     ),
+                    if (summary.totalReceiptDeductions > 0 ||
+                        summary.totalRecurringDeductions > 0) ...[
+                      const SizedBox(height: 10),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surfaceContainerHighest
+                              .withAlpha(120),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.check_circle_outline,
+                              size: 14,
+                              color: theme.colorScheme.primary,
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                'Expenses connected: ${cur.format(summary.totalReceiptDeductions)} receipts/transactions + ${cur.format(summary.totalRecurringDeductions)} recurring',
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -988,6 +1050,32 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
     }
 
     final cur = NumberFormat.currency(symbol: '\$');
+    final selectedYear = _dateRange?.start.year ?? DateTime.now().year;
+
+    final allDbTransactions =
+        ref.watch(expenseTransactionsProvider).value ?? [];
+    final yearTransactions = allDbTransactions.where((t) {
+      if (_dateRange != null) {
+        final d = t.transaction.date;
+        return (d.isAtSameMomentAs(_dateRange!.start) ||
+                d.isAfter(_dateRange!.start)) &&
+            (d.isAtSameMomentAs(_dateRange!.end) ||
+                d.isBefore(_dateRange!.end));
+      }
+      return t.transaction.date.year == selectedYear;
+    }).toList();
+
+    final dbTransactionsDed = yearTransactions.fold(
+      0.0,
+      (sum, t) => sum + t.deductibleAmount,
+    );
+    final legacyDed = _receipts
+        .where((r) => r.isTaxDeductible)
+        .fold(0.0, (sum, r) => sum + r.amount);
+    final totalReceiptsDed = dbTransactionsDed + legacyDed;
+    final monthlyRecurring = ref.watch(totalMonthlyDeductibleProvider);
+    final annualRecurringDed = monthlyRecurring * 12.0;
+    final totalScheduleCDeductions = totalReceiptsDed + annualRecurringDed;
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -1103,6 +1191,24 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                     theme,
                   ),
                 ],
+                if (totalScheduleCDeductions > 0) ...[
+                  _SummaryRow(
+                    'Deductible expenses (Schedule C)',
+                    '− ${cur.format(totalScheduleCDeductions)}',
+                    theme,
+                  ),
+                  _SummaryRow(
+                    'Net taxable profit',
+                    cur.format(
+                      (totalNet - totalScheduleCDeductions).clamp(
+                        0.0,
+                        double.infinity,
+                      ),
+                    ),
+                    theme,
+                    bold: true,
+                  ),
+                ],
                 _SummaryRow('Tax collected', cur.format(totalTax), theme),
                 const Divider(height: 16),
                 _SummaryRow(
@@ -1113,9 +1219,13 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                 ),
                 const SizedBox(height: 8),
                 () {
-                  final seBase = totalNet * 0.9235;
+                  final netProfit = (totalNet - totalScheduleCDeductions).clamp(
+                    0.0,
+                    double.infinity,
+                  );
+                  final seBase = netProfit * 0.9235;
                   final seTax = seBase * _seRate;
-                  final fedBase = (totalNet - seTax / 2).clamp(
+                  final fedBase = (netProfit - seTax / 2).clamp(
                     0.0,
                     double.infinity,
                   );
@@ -1410,12 +1520,14 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                     ),
                   ],
                 ),
-                if (_receipts.isEmpty)
+                if (yearTransactions.isEmpty &&
+                    _receipts.isEmpty &&
+                    monthlyRecurring == 0)
                   Padding(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     child: Center(
                       child: Text(
-                        'No expenses yet. Tap Add to record one.',
+                        'No expenses yet for this period. Tap Add to record one.',
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
                         ),
@@ -1424,29 +1536,66 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                   )
                 else ...[
                   const SizedBox(height: 8),
+                  ...yearTransactions.map(
+                    (t) => _buildTransactionTile(t, theme, cur),
+                  ),
                   ..._receipts.map((r) => _buildReceiptTile(r, theme, cur)),
+                  if (monthlyRecurring > 0) ...[
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        Icons.repeat,
+                        color: theme.colorScheme.primary,
+                      ),
+                      title: const Text('Recurring Overhead Rules'),
+                      subtitle: Text(
+                        '${cur.format(monthlyRecurring)}/mo · ${cur.format(annualRecurringDed)}/yr Schedule C deductible',
+                        style: theme.textTheme.bodySmall,
+                      ),
+                      trailing: TextButton(
+                        onPressed: () => context.go('/expenses'),
+                        child: const Text('Manage'),
+                      ),
+                    ),
+                  ],
                   const Divider(height: 16),
                   () {
-                    final totalAll = _receipts.fold(
+                    final totalTransAll = yearTransactions.fold(
+                      0.0,
+                      (sum, t) => sum + t.transaction.amount,
+                    );
+                    final totalLegacyAll = _receipts.fold(
                       0.0,
                       (sum, r) => sum + r.amount,
                     );
-                    final totalDed = _receipts
-                        .where((r) => r.isTaxDeductible)
-                        .fold(0.0, (sum, r) => sum + r.amount);
-                    final savings =
-                        totalDed * (_federalRate + _seRate * 0.9235 * 0.5);
+                    final totalExpensesAll = totalTransAll +
+                        totalLegacyAll +
+                        annualRecurringDed;
+                    final savings = totalScheduleCDeductions *
+                        (_federalRate + _seRate * 0.9235 * 0.5);
                     return Column(
                       children: [
-                        if (totalAll != totalDed)
+                        if (totalExpensesAll != totalScheduleCDeductions)
                           _SummaryRow(
-                            'Total expenses',
-                            cur.format(totalAll),
+                            'Total gross expenses',
+                            cur.format(totalExpensesAll),
+                            theme,
+                          ),
+                        if (totalReceiptsDed > 0)
+                          _SummaryRow(
+                            'Transactions deductible',
+                            cur.format(totalReceiptsDed),
+                            theme,
+                          ),
+                        if (annualRecurringDed > 0)
+                          _SummaryRow(
+                            'Recurring overhead (annual)',
+                            cur.format(annualRecurringDed),
                             theme,
                           ),
                         _SummaryRow(
-                          'Deductible total',
-                          cur.format(totalDed),
+                          'Total Schedule C Deductions',
+                          cur.format(totalScheduleCDeductions),
                           theme,
                           bold: true,
                         ),
@@ -1468,6 +1617,36 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
                               ),
                             ),
                           ],
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.surfaceContainerHighest
+                                .withAlpha(120),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.check_circle_outline,
+                                size: 14,
+                                color: theme.colorScheme.primary,
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  'Live synced with Expenses database',
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     );
@@ -1608,11 +1787,83 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
     );
   }
 
-  Future<void> _showAddExpense() async {
-    final result = await _showExpenseSheet();
-    if (result == null || !mounted) return;
-    setState(() => _receipts.insert(0, result));
-    await _saveReceipts();
+  Widget _buildTransactionTile(
+    ExpenseTransactionWithCategory t,
+    ThemeData theme,
+    NumberFormat cur,
+  ) {
+    final hasPhoto = t.transaction.receiptPath != null &&
+        File(t.transaction.receiptPath!).existsSync();
+
+    Widget leading = hasPhoto
+        ? GestureDetector(
+            onTap: () => _viewPhoto(t.transaction.receiptPath!),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: Image.file(
+                File(t.transaction.receiptPath!),
+                width: 44,
+                height: 44,
+                fit: BoxFit.cover,
+              ),
+            ),
+          )
+        : Icon(
+            Icons.receipt_outlined,
+            color: theme.colorScheme.primary,
+          );
+
+    final lineTag = t.category.irsScheduleCLine.isNotEmpty
+        ? ' (${t.category.irsScheduleCLine})'
+        : '';
+    final catName = t.category.name;
+    final dateStr = DateFormat.yMMMd().format(t.transaction.date);
+    final pct = t.transaction.businessUsePct;
+    final subtitle = pct < 100
+        ? '$catName$lineTag · $dateStr · $pct% deductible'
+        : '$catName$lineTag · $dateStr';
+
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: leading,
+      title: Text(t.transaction.title),
+      subtitle: Text(subtitle, style: theme.textTheme.bodySmall),
+      onTap: () => context.push('/expenses/quick-capture', extra: t),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                cur.format(t.deductibleAmount),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              if (pct < 100)
+                Text(
+                  'of ${cur.format(t.transaction.amount)}',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(width: 4),
+          Icon(
+            Icons.chevron_right,
+            size: 18,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAddExpense() {
+    context.push('/expenses/quick-capture');
   }
 
   Future<_Receipt?> _showExpenseSheet({_Receipt? existing}) {
@@ -1632,10 +1883,14 @@ class _TaxesPageState extends ConsumerState<TaxesPage>
     NumberFormat cur,
   ) {
     final year = _dateRange?.start.year ?? DateTime.now().year;
-    // Only sum receipts that are explicitly marked as tax-deductible
+    final transactions = ref.watch(expenseTransactionsProvider).value ?? [];
+    final dbDed = transactions
+        .where((t) => t.transaction.date.year == year)
+        .fold(0.0, (sum, t) => sum + t.deductibleAmount);
+    // Sum both DB transactions and legacy receipts that are explicitly marked as tax-deductible
     final totalDeductibleReceipts = _receipts
         .where((r) => r.isTaxDeductible)
-        .fold(0.0, (sum, r) => sum + r.amount);
+        .fold(0.0, (sum, r) => sum + r.amount) + dbDed;
     // Monthly recurring deductible from the Expenses tab
     final monthlyRecurring = ref.watch(totalMonthlyDeductibleProvider);
     final now = DateTime.now();
@@ -3086,8 +3341,10 @@ class _SummaryRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: style),
+          Expanded(child: Text(label, style: style)),
+          const SizedBox(width: 8),
           Text(value, style: style),
         ],
       ),

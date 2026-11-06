@@ -53,6 +53,14 @@ final bankTaxReserveSummaryProvider = FutureProvider.family<BankTaxReserveSummar
     } catch (_) {}
   }
 
+  // Live connection to one-off expense transactions recorded in Drift database
+  final transactions = ref.watch(expenseTransactionsProvider).value ?? [];
+  for (final t in transactions) {
+    if (t.transaction.date.year == year) {
+      totalDeductibleReceipts += t.deductibleAmount;
+    }
+  }
+
   return BankTaxReserveSummary.calculate(
     year: year,
     invoices: invoices,
